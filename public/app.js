@@ -3,26 +3,22 @@ const API = "/api";
 let currentPage = "dashboard";
 let customersCache = [];
 
+
 /* =========================================================
-   API HELPERS
+   API
 ========================================================= */
 
 async function apiRequest(endpoint, options = {}) {
+
     const response = await fetch(`${API}${endpoint}`, {
+        ...options,
         headers: {
             "Content-Type": "application/json",
             ...(options.headers || {})
-        },
-        ...options
+        }
     });
 
-    let result;
-
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error(`Invalid server response (${response.status})`);
-    }
+    const result = await response.json();
 
     if (!response.ok || result.success === false) {
         throw new Error(
@@ -35,9 +31,11 @@ async function apiRequest(endpoint, options = {}) {
     return result;
 }
 
+
 async function apiGet(endpoint) {
     return apiRequest(endpoint);
 }
+
 
 async function apiPost(endpoint, data) {
     return apiRequest(endpoint, {
@@ -46,12 +44,14 @@ async function apiPost(endpoint, data) {
     });
 }
 
+
 async function apiPut(endpoint, data) {
     return apiRequest(endpoint, {
         method: "PUT",
         body: JSON.stringify(data)
     });
 }
+
 
 async function apiDelete(endpoint) {
     return apiRequest(endpoint, {
@@ -65,6 +65,7 @@ async function apiDelete(endpoint) {
 ========================================================= */
 
 const PAGE_INFO = {
+
     dashboard: {
         title: "Dashboard",
         subtitle: "Overview of your business activity"
@@ -104,6 +105,7 @@ const PAGE_INFO = {
         title: "Payments",
         subtitle: "Track customer payments"
     }
+
 };
 
 
@@ -112,7 +114,9 @@ const PAGE_INFO = {
 ========================================================= */
 
 async function renderDashboard() {
-    const content = document.getElementById("content");
+
+    const content =
+        document.getElementById("content");
 
     content.innerHTML = `
         <div class="loading">
@@ -121,6 +125,7 @@ async function renderDashboard() {
     `;
 
     try {
+
         const [
             customers,
             products,
@@ -129,92 +134,160 @@ async function renderDashboard() {
             orders,
             followups
         ] = await Promise.all([
+
             apiGet("/customers"),
             apiGet("/products"),
             apiGet("/enquiries"),
             apiGet("/quotations"),
             apiGet("/orders"),
             apiGet("/followups")
+
         ]);
 
-        const customerCount = customers.count || 0;
-        const productCount = products.count || 0;
-        const enquiryCount = enquiries.count || 0;
-        const quotationCount = quotations.count || 0;
-        const orderCount = orders.count || 0;
-        const followupCount = followups.count || 0;
+        const customerCount =
+            customers.count || 0;
 
-        const enquiryData = enquiries.data || [];
-        const quotationData = quotations.data || [];
+        const productCount =
+            products.count || 0;
 
-        const quotationValue = quotationData.reduce(
-            (sum, quote) => sum + Number(quote.grand_total || 0),
-            0
-        );
+        const enquiryCount =
+            enquiries.count || 0;
+
+        const quotationCount =
+            quotations.count || 0;
+
+        const orderCount =
+            orders.count || 0;
+
+        const followupCount =
+            followups.count || 0;
+
+        const enquiryData =
+            enquiries.data || [];
+
+        const quotationData =
+            quotations.data || [];
+
+        const quotationValue =
+            quotationData.reduce(
+                (sum, q) =>
+                    sum + Number(q.grand_total || 0),
+                0
+            );
+
 
         content.innerHTML = `
+
             <div class="stats">
 
                 <div class="stat-card">
-                    <div class="stat-label">Customers</div>
-                    <div class="stat-value">${customerCount}</div>
-                    <div class="stat-footer">Total customers</div>
+                    <div class="stat-label">
+                        Customers
+                    </div>
+
+                    <div class="stat-value">
+                        ${customerCount}
+                    </div>
+
+                    <div class="stat-footer">
+                        Total customers
+                    </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-label">Products</div>
-                    <div class="stat-value">${productCount}</div>
-                    <div class="stat-footer">Product catalogue</div>
-                </div>
 
                 <div class="stat-card">
-                    <div class="stat-label">Enquiries</div>
-                    <div class="stat-value">${enquiryCount}</div>
-                    <div class="stat-footer">Customer enquiries</div>
+                    <div class="stat-label">
+                        Products
+                    </div>
+
+                    <div class="stat-value">
+                        ${productCount}
+                    </div>
+
+                    <div class="stat-footer">
+                        Product catalogue
+                    </div>
                 </div>
 
+
                 <div class="stat-card">
-                    <div class="stat-label">Quotations</div>
-                    <div class="stat-value">${quotationCount}</div>
-                    <div class="stat-footer">Total quotations</div>
+                    <div class="stat-label">
+                        Enquiries
+                    </div>
+
+                    <div class="stat-value">
+                        ${enquiryCount}
+                    </div>
+
+                    <div class="stat-footer">
+                        Customer enquiries
+                    </div>
+                </div>
+
+
+                <div class="stat-card">
+                    <div class="stat-label">
+                        Quotations
+                    </div>
+
+                    <div class="stat-value">
+                        ${quotationCount}
+                    </div>
+
+                    <div class="stat-footer">
+                        Total quotations
+                    </div>
                 </div>
 
             </div>
+
 
             <div class="grid-2">
 
                 <div class="panel">
 
                     <div class="panel-header">
-                        <h2>Recent Enquiries</h2>
 
-                        <button onclick="showPage('enquiries')">
+                        <h2>
+                            Recent Enquiries
+                        </h2>
+
+                        <button
+                            id="dashboardEnquiriesButton"
+                        >
                             View all
                         </button>
+
                     </div>
 
                     <div class="panel-body">
 
                         ${
                             enquiryData.length === 0
+
                                 ? `
                                     <div class="empty">
-                                        <div class="empty-icon">📩</div>
+                                        <div class="empty-icon">
+                                            📩
+                                        </div>
                                         No enquiries yet
                                     </div>
                                 `
+
                                 : `
                                     <div class="table-wrapper">
 
                                         <table>
 
                                             <thead>
+
                                                 <tr>
                                                     <th>ID</th>
                                                     <th>Subject</th>
                                                     <th>Source</th>
                                                     <th>Status</th>
                                                 </tr>
+
                                             </thead>
 
                                             <tbody>
@@ -222,6 +295,7 @@ async function renderDashboard() {
                                                 ${enquiryData
                                                     .slice(0, 5)
                                                     .map(enquiry => `
+
                                                         <tr>
 
                                                             <td>
@@ -241,14 +315,19 @@ async function renderDashboard() {
                                                             </td>
 
                                                             <td>
+
                                                                 <span class="badge badge-new">
+
                                                                     ${escapeHtml(
                                                                         enquiry.status || "New"
                                                                     )}
+
                                                                 </span>
+
                                                             </td>
 
                                                         </tr>
+
                                                     `)
                                                     .join("")}
 
@@ -268,34 +347,46 @@ async function renderDashboard() {
                 <div class="panel">
 
                     <div class="panel-header">
-                        <h2>Recent Quotations</h2>
 
-                        <button onclick="showPage('quotations')">
+                        <h2>
+                            Recent Quotations
+                        </h2>
+
+                        <button
+                            id="dashboardQuotationsButton"
+                        >
                             View all
                         </button>
+
                     </div>
 
                     <div class="panel-body">
 
                         ${
                             quotationData.length === 0
+
                                 ? `
                                     <div class="empty">
-                                        <div class="empty-icon">💰</div>
+                                        <div class="empty-icon">
+                                            💰
+                                        </div>
                                         No quotations yet
                                     </div>
                                 `
+
                                 : `
                                     <div class="table-wrapper">
 
                                         <table>
 
                                             <thead>
+
                                                 <tr>
                                                     <th>Quote</th>
                                                     <th>Status</th>
                                                     <th>Total</th>
                                                 </tr>
+
                                             </thead>
 
                                             <tbody>
@@ -303,6 +394,7 @@ async function renderDashboard() {
                                                 ${quotationData
                                                     .slice(0, 5)
                                                     .map(quote => `
+
                                                         <tr>
 
                                                             <td>
@@ -312,11 +404,15 @@ async function renderDashboard() {
                                                             </td>
 
                                                             <td>
+
                                                                 <span class="badge badge-draft">
+
                                                                     ${escapeHtml(
                                                                         quote.status || "Draft"
                                                                     )}
+
                                                                 </span>
+
                                                             </td>
 
                                                             <td>
@@ -326,6 +422,7 @@ async function renderDashboard() {
                                                             </td>
 
                                                         </tr>
+
                                                     `)
                                                     .join("")}
 
@@ -344,10 +441,17 @@ async function renderDashboard() {
             </div>
 
 
-            <div class="panel" style="margin-top:20px;">
+            <div
+                class="panel"
+                style="margin-top:20px;"
+            >
 
                 <div class="panel-header">
-                    <h2>Quick Overview</h2>
+
+                    <h2>
+                        Quick Overview
+                    </h2>
+
                 </div>
 
                 <div class="panel-body">
@@ -355,20 +459,43 @@ async function renderDashboard() {
                     <div class="stats">
 
                         <div class="stat-card">
-                            <div class="stat-label">Orders</div>
-                            <div class="stat-value">${orderCount}</div>
-                        </div>
 
-                        <div class="stat-card">
-                            <div class="stat-label">Follow-ups</div>
-                            <div class="stat-value">${followupCount}</div>
-                        </div>
-
-                        <div class="stat-card">
-                            <div class="stat-label">Quotation Value</div>
-                            <div class="stat-value">
-                                ${formatCurrency(quotationValue)}
+                            <div class="stat-label">
+                                Orders
                             </div>
+
+                            <div class="stat-value">
+                                ${orderCount}
+                            </div>
+
+                        </div>
+
+
+                        <div class="stat-card">
+
+                            <div class="stat-label">
+                                Follow-ups
+                            </div>
+
+                            <div class="stat-value">
+                                ${followupCount}
+                            </div>
+
+                        </div>
+
+
+                        <div class="stat-card">
+
+                            <div class="stat-label">
+                                Quotation Value
+                            </div>
+
+                            <div class="stat-value">
+                                ${formatCurrency(
+                                    quotationValue
+                                )}
+                            </div>
+
                         </div>
 
                     </div>
@@ -378,17 +505,51 @@ async function renderDashboard() {
             </div>
         `;
 
+
+        document
+            .getElementById(
+                "dashboardEnquiriesButton"
+            )
+            ?.addEventListener(
+                "click",
+                () => showPage("enquiries")
+            );
+
+
+        document
+            .getElementById(
+                "dashboardQuotationsButton"
+            )
+            ?.addEventListener(
+                "click",
+                () => showPage("quotations")
+            );
+
+
     } catch (error) {
+
         console.error(error);
 
         content.innerHTML = `
             <div class="panel">
                 <div class="panel-body">
+
                     <div class="empty">
-                        <div class="empty-icon">⚠️</div>
-                        <h3>Unable to load dashboard</h3>
-                        <p>${escapeHtml(error.message)}</p>
+
+                        <div class="empty-icon">
+                            ⚠️
+                        </div>
+
+                        <h3>
+                            Unable to load dashboard
+                        </h3>
+
+                        <p>
+                            ${escapeHtml(error.message)}
+                        </p>
+
                     </div>
+
                 </div>
             </div>
         `;
@@ -401,7 +562,9 @@ async function renderDashboard() {
 ========================================================= */
 
 async function renderCustomers() {
-    const content = document.getElementById("content");
+
+    const content =
+        document.getElementById("content");
 
     content.innerHTML = `
         <div class="loading">
@@ -409,14 +572,43 @@ async function renderCustomers() {
         </div>
     `;
 
-    try {
-        const result = await apiGet("/customers");
 
-        customersCache = result.customers || [];
+    try {
+
+        const result =
+            await apiGet("/customers");
+
+
+        /*
+          IMPORTANT:
+          New server.js returns:
+
+          {
+             count: 1,
+             data: [...]
+          }
+
+          Older server returned:
+
+          {
+             count: 1,
+             customers: [...]
+          }
+
+          Support BOTH.
+        */
+
+        customersCache =
+            result.customers ||
+            result.data ||
+            [];
+
 
         renderCustomersTable();
 
+
     } catch (error) {
+
         console.error(error);
 
         content.innerHTML = `
@@ -425,7 +617,9 @@ async function renderCustomers() {
 
                     <div class="empty">
 
-                        <div class="empty-icon">⚠️</div>
+                        <div class="empty-icon">
+                            ⚠️
+                        </div>
 
                         <h3>
                             Unable to load customers
@@ -444,46 +638,63 @@ async function renderCustomers() {
 }
 
 
+/* =========================================================
+   CUSTOMER TABLE
+========================================================= */
+
 function renderCustomersTable(searchText = "") {
-    const content = document.getElementById("content");
 
-    const search = searchText.trim().toLowerCase();
+    const content =
+        document.getElementById("content");
 
-    const filtered = customersCache.filter(customer => {
-
-        const searchable = [
-            customer.company_name,
-            customer.contact_person,
-            customer.mobile,
-            customer.whatsapp,
-            customer.email,
-            customer.city,
-            customer.state,
-            customer.gst_number,
-            customer.customer_type
-        ]
-            .filter(Boolean)
-            .join(" ")
+    const search =
+        String(searchText)
+            .trim()
             .toLowerCase();
 
-        return searchable.includes(search);
-    });
+
+    const filtered =
+        customersCache.filter(customer => {
+
+            const searchable = [
+
+                customer.company_name,
+                customer.contact_person,
+                customer.mobile,
+                customer.whatsapp,
+                customer.email,
+                customer.city,
+                customer.state,
+                customer.gst_number,
+                customer.customer_type
+
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+
+            return searchable.includes(search);
+
+        });
 
 
     content.innerHTML = `
+
         <div class="page-toolbar">
 
             <input
                 id="customerSearch"
                 class="search-box"
-                placeholder="Search company, mobile, GST..."
+                placeholder="Search customers..."
                 value="${escapeHtml(searchText)}"
-                oninput="filterCustomers()"
             >
 
+
             <button
+                id="addCustomerButton"
                 class="primary-button"
-                onclick="openCustomerModal()"
+                type="button"
             >
                 + Add Customer
             </button>
@@ -496,10 +707,18 @@ function renderCustomersTable(searchText = "") {
             <div class="panel-header">
 
                 <h2>
+
                     Customers
-                    <span style="color:#6b7280;font-size:12px;">
+
+                    <span
+                        style="
+                            color:#6b7280;
+                            font-size:12px;
+                        "
+                    >
                         (${filtered.length})
                     </span>
+
                 </h2>
 
             </div>
@@ -513,13 +732,33 @@ function renderCustomersTable(searchText = "") {
 
                         <tr>
 
-                            <th>Company</th>
-                            <th>Contact</th>
-                            <th>Mobile</th>
-                            <th>City</th>
-                            <th>GST</th>
-                            <th>Type</th>
-                            <th>Action</th>
+                            <th>
+                                Company
+                            </th>
+
+                            <th>
+                                Contact
+                            </th>
+
+                            <th>
+                                Mobile
+                            </th>
+
+                            <th>
+                                City
+                            </th>
+
+                            <th>
+                                GST
+                            </th>
+
+                            <th>
+                                Type
+                            </th>
+
+                            <th>
+                                Action
+                            </th>
 
                         </tr>
 
@@ -532,6 +771,7 @@ function renderCustomersTable(searchText = "") {
                             filtered.length === 0
 
                                 ? `
+
                                     <tr>
 
                                         <td colspan="7">
@@ -553,10 +793,12 @@ function renderCustomersTable(searchText = "") {
                                         </td>
 
                                     </tr>
+
                                 `
 
                                 : filtered
                                     .map(customer => `
+
                                         <tr>
 
                                             <td>
@@ -569,11 +811,13 @@ function renderCustomersTable(searchText = "") {
 
                                             </td>
 
+
                                             <td>
                                                 ${escapeHtml(
                                                     customer.contact_person || "-"
                                                 )}
                                             </td>
+
 
                                             <td>
                                                 ${escapeHtml(
@@ -581,11 +825,13 @@ function renderCustomersTable(searchText = "") {
                                                 )}
                                             </td>
 
+
                                             <td>
                                                 ${escapeHtml(
                                                     customer.city || "-"
                                                 )}
                                             </td>
+
 
                                             <td>
                                                 ${escapeHtml(
@@ -593,29 +839,36 @@ function renderCustomersTable(searchText = "") {
                                                 )}
                                             </td>
 
+
                                             <td>
                                                 ${escapeHtml(
                                                     customer.customer_type || "-"
                                                 )}
                                             </td>
 
+
                                             <td>
 
-                                                <div style="
-                                                    display:flex;
-                                                    gap:6px;
-                                                ">
+                                                <div
+                                                    style="
+                                                        display:flex;
+                                                        gap:6px;
+                                                    "
+                                                >
 
                                                     <button
-                                                        class="small-action"
-                                                        onclick="openCustomerModal(${customer.id})"
+                                                        type="button"
+                                                        class="small-action edit-customer"
+                                                        data-id="${customer.id}"
                                                     >
                                                         Edit
                                                     </button>
 
+
                                                     <button
-                                                        class="small-action danger"
-                                                        onclick="deleteCustomer(${customer.id})"
+                                                        type="button"
+                                                        class="small-action danger delete-customer"
+                                                        data-id="${customer.id}"
                                                     >
                                                         Delete
                                                     </button>
@@ -625,6 +878,7 @@ function renderCustomersTable(searchText = "") {
                                             </td>
 
                                         </tr>
+
                                     `)
                                     .join("")
                         }
@@ -641,14 +895,84 @@ function renderCustomersTable(searchText = "") {
         <div id="customerModal"></div>
     `;
 
+
     addModalStylesIfNeeded();
-}
 
 
-function filterCustomers() {
-    const input = document.getElementById("customerSearch");
+    /* SEARCH */
 
-    renderCustomersTable(input ? input.value : "");
+    document
+        .getElementById("customerSearch")
+        ?.addEventListener(
+            "input",
+            event => {
+                renderCustomersTable(
+                    event.target.value
+                );
+            }
+        );
+
+
+    /* ADD */
+
+    document
+        .getElementById("addCustomerButton")
+        ?.addEventListener(
+            "click",
+            event => {
+
+                event.preventDefault();
+
+                event.stopPropagation();
+
+                openCustomerModal();
+
+            }
+        );
+
+
+    /* EDIT */
+
+    document
+        .querySelectorAll(
+            ".edit-customer"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    openCustomerModal(
+                        Number(button.dataset.id)
+                    );
+
+                }
+            );
+
+        });
+
+
+    /* DELETE */
+
+    document
+        .querySelectorAll(
+            ".delete-customer"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    deleteCustomer(
+                        Number(button.dataset.id)
+                    );
+
+                }
+            );
+
+        });
 }
 
 
@@ -658,22 +982,41 @@ function filterCustomers() {
 
 function openCustomerModal(customerId = null) {
 
-    const customer = customerId
-        ? customersCache.find(
-            item => Number(item.id) === Number(customerId)
-        )
-        : null;
+    const container =
+        document.getElementById(
+            "customerModal"
+        );
 
 
-    const modalContainer =
-        document.getElementById("customerModal");
+    if (!container) {
+
+        alert(
+            "Customer form could not be opened."
+        );
+
+        console.error(
+            "customerModal element not found"
+        );
+
+        return;
+    }
 
 
-    modalContainer.innerHTML = `
+    const customer =
+        customerId
+            ? customersCache.find(
+                item =>
+                    Number(item.id) ===
+                    Number(customerId)
+            )
+            : null;
+
+
+    container.innerHTML = `
 
         <div
             class="modal-backdrop"
-            onclick="closeCustomerModal(event)"
+            id="customerModalBackdrop"
         >
 
             <div
@@ -694,18 +1037,16 @@ function openCustomerModal(customerId = null) {
                         </h2>
 
                         <p>
-                            ${
-                                customer
-                                    ? "Update customer information"
-                                    : "Enter customer details"
-                            }
+                            Enter customer information
                         </p>
 
                     </div>
 
+
                     <button
+                        type="button"
                         class="modal-close"
-                        onclick="closeCustomerModal()"
+                        id="closeCustomerModalButton"
                     >
                         ×
                     </button>
@@ -715,7 +1056,6 @@ function openCustomerModal(customerId = null) {
 
                 <form
                     id="customerForm"
-                    onsubmit="saveCustomer(event, ${customerId || "null"})"
                 >
 
                     <div class="form-grid">
@@ -889,7 +1229,9 @@ function openCustomerModal(customerId = null) {
                                 Customer Type
                             </label>
 
-                            <select name="customer_type">
+                            <select
+                                name="customer_type"
+                            >
 
                                 <option value="">
                                     Select type
@@ -970,7 +1312,6 @@ function openCustomerModal(customerId = null) {
 
                         </div>
 
-
                     </div>
 
 
@@ -979,14 +1320,16 @@ function openCustomerModal(customerId = null) {
                         <button
                             type="button"
                             class="secondary-button"
-                            onclick="closeCustomerModal()"
+                            id="cancelCustomerButton"
                         >
                             Cancel
                         </button>
 
+
                         <button
                             type="submit"
                             class="primary-button"
+                            id="saveCustomerButton"
                         >
                             ${
                                 customer
@@ -1003,21 +1346,80 @@ function openCustomerModal(customerId = null) {
 
         </div>
     `;
+
+
+    document
+        .getElementById(
+            "closeCustomerModalButton"
+        )
+        ?.addEventListener(
+            "click",
+            closeCustomerModal
+        );
+
+
+    document
+        .getElementById(
+            "cancelCustomerButton"
+        )
+        ?.addEventListener(
+            "click",
+            closeCustomerModal
+        );
+
+
+    document
+        .getElementById(
+            "customerModalBackdrop"
+        )
+        ?.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target.id ===
+                    "customerModalBackdrop"
+                ) {
+                    closeCustomerModal();
+                }
+
+            }
+        );
+
+
+    document
+        .getElementById("customerForm")
+        ?.addEventListener(
+            "submit",
+            event => {
+
+                saveCustomer(
+                    event,
+                    customerId
+                );
+
+            }
+        );
+
+
+    setTimeout(() => {
+
+        document
+            .querySelector(
+                '#customerForm input[name="company_name"]'
+            )
+            ?.focus();
+
+    }, 50);
 }
 
 
-function closeCustomerModal(event) {
-
-    if (
-        event &&
-        event.target &&
-        !event.target.classList.contains("modal-backdrop")
-    ) {
-        return;
-    }
+function closeCustomerModal() {
 
     const container =
-        document.getElementById("customerModal");
+        document.getElementById(
+            "customerModal"
+        );
 
     if (container) {
         container.innerHTML = "";
@@ -1029,43 +1431,58 @@ function closeCustomerModal(event) {
    SAVE CUSTOMER
 ========================================================= */
 
-async function saveCustomer(event, customerId) {
+async function saveCustomer(
+    event,
+    customerId
+) {
 
     event.preventDefault();
 
-    const form = event.target;
 
-    const formData = new FormData(form);
+    const form =
+        event.target;
+
+
+    const formData =
+        new FormData(form);
+
 
     const data = {};
 
-    formData.forEach((value, key) => {
 
-        const trimmed =
-            String(value).trim();
+    formData.forEach(
+        (value, key) => {
 
-        if (trimmed !== "") {
-            data[key] = trimmed;
+            const trimmed =
+                String(value).trim();
+
+            if (trimmed !== "") {
+                data[key] = trimmed;
+            }
+
         }
-    });
+    );
 
 
     if (!data.company_name) {
 
-        alert("Company name is required.");
+        alert(
+            "Company name is required."
+        );
 
         return;
     }
 
 
-    const submitButton =
-        form.querySelector(
-            'button[type="submit"]'
+    const button =
+        document.getElementById(
+            "saveCustomerButton"
         );
 
-    submitButton.disabled = true;
 
-    submitButton.textContent =
+    button.disabled = true;
+
+    button.textContent =
         customerId
             ? "Updating..."
             : "Saving...";
@@ -1094,6 +1511,7 @@ async function saveCustomer(event, customerId) {
             alert(
                 "Customer created successfully."
             );
+
         }
 
 
@@ -1106,12 +1524,14 @@ async function saveCustomer(event, customerId) {
         console.error(error);
 
         alert(
-            `Unable to save customer:\n\n${error.message}`
+            "Unable to save customer:\n\n" +
+            error.message
         );
 
-        submitButton.disabled = false;
 
-        submitButton.textContent =
+        button.disabled = false;
+
+        button.textContent =
             customerId
                 ? "Update Customer"
                 : "Save Customer";
@@ -1123,12 +1543,15 @@ async function saveCustomer(event, customerId) {
    DELETE CUSTOMER
 ========================================================= */
 
-async function deleteCustomer(customerId) {
+async function deleteCustomer(
+    customerId
+) {
 
     const customer =
         customersCache.find(
             item =>
-                Number(item.id) === Number(customerId)
+                Number(item.id) ===
+                Number(customerId)
         );
 
 
@@ -1137,18 +1560,17 @@ async function deleteCustomer(customerId) {
     }
 
 
-    const companyName =
+    const name =
         customer.company_name ||
         `Customer #${customerId}`;
 
 
-    const confirmed = confirm(
-        `Delete "${companyName}"?\n\n` +
-        `This action cannot be undone.`
-    );
-
-
-    if (!confirmed) {
+    if (
+        !confirm(
+            `Delete "${name}"?\n\n` +
+            `This action cannot be undone.`
+        )
+    ) {
         return;
     }
 
@@ -1159,9 +1581,11 @@ async function deleteCustomer(customerId) {
             `/customers/${customerId}`
         );
 
+
         alert(
             "Customer deleted successfully."
         );
+
 
         await renderCustomers();
 
@@ -1170,7 +1594,8 @@ async function deleteCustomer(customerId) {
         console.error(error);
 
         alert(
-            `Unable to delete customer:\n\n${error.message}`
+            "Unable to delete customer:\n\n" +
+            error.message
         );
     }
 }
@@ -1183,7 +1608,9 @@ async function deleteCustomer(customerId) {
 async function renderProducts() {
 
     const content =
-        document.getElementById("content");
+        document.getElementById(
+            "content"
+        );
 
     content.innerHTML = `
         <div class="loading">
@@ -1212,8 +1639,8 @@ async function renderProducts() {
 
                 <button
                     class="primary-button"
+                    type="button"
                     disabled
-                    title="Coming next"
                 >
                     + Add Product
                 </button>
@@ -1230,15 +1657,35 @@ async function renderProducts() {
                         <thead>
 
                             <tr>
-                                <th>Product</th>
-                                <th>Brand</th>
-                                <th>Model</th>
-                                <th>Selling Price</th>
-                                <th>Stock</th>
-                                <th>Unit</th>
+
+                                <th>
+                                    Product
+                                </th>
+
+                                <th>
+                                    Brand
+                                </th>
+
+                                <th>
+                                    Model
+                                </th>
+
+                                <th>
+                                    Selling Price
+                                </th>
+
+                                <th>
+                                    Stock
+                                </th>
+
+                                <th>
+                                    Unit
+                                </th>
+
                             </tr>
 
                         </thead>
+
 
                         <tbody>
 
@@ -1246,59 +1693,73 @@ async function renderProducts() {
                                 data.length === 0
                                     ? `
                                         <tr>
+
                                             <td colspan="6">
 
                                                 <div class="empty">
+
                                                     <div class="empty-icon">
                                                         📦
                                                     </div>
+
                                                     No products found
+
                                                 </div>
 
                                             </td>
+
                                         </tr>
                                     `
-                                    : data.map(product => `
-                                        <tr>
+                                    : data
+                                        .map(
+                                            product => `
 
-                                            <td>
-                                                <strong>
-                                                    ${escapeHtml(
-                                                        product.product_name || "-"
-                                                    )}
-                                                </strong>
-                                            </td>
+                                                <tr>
 
-                                            <td>
-                                                ${escapeHtml(
-                                                    product.brand || "-"
-                                                )}
-                                            </td>
+                                                    <td>
+                                                        <strong>
+                                                            ${escapeHtml(
+                                                                product.product_name || "-"
+                                                            )}
+                                                        </strong>
+                                                    </td>
 
-                                            <td>
-                                                ${escapeHtml(
-                                                    product.model || "-"
-                                                )}
-                                            </td>
+                                                    <td>
+                                                        ${escapeHtml(
+                                                            product.brand || "-"
+                                                        )}
+                                                    </td>
 
-                                            <td>
-                                                ${formatCurrency(
-                                                    product.selling_price
-                                                )}
-                                            </td>
+                                                    <td>
+                                                        ${escapeHtml(
+                                                            product.model || "-"
+                                                        )}
+                                                    </td>
 
-                                            <td>
-                                                ${product.stock_qty ?? 0}
-                                            </td>
+                                                    <td>
+                                                        ${formatCurrency(
+                                                            product.selling_price
+                                                        )}
+                                                    </td>
 
-                                            <td>
-                                                ${escapeHtml(
-                                                    product.unit || "Nos"
-                                                )}
-                                            </td>
+                                                    <td>
+                                                        ${
+                                                            product.stock_qty ??
+                                                            0
+                                                        }
+                                                    </td>
 
-                                        </tr>
-                                    `).join("")
+                                                    <td>
+                                                        ${escapeHtml(
+                                                            product.unit || "Nos"
+                                                        )}
+                                                    </td>
+
+                                                </tr>
+
+                                            `
+                                        )
+                                        .join("")
                             }
 
                         </tbody>
@@ -1312,13 +1773,16 @@ async function renderProducts() {
 
     } catch (error) {
 
-        console.error(error);
-
         content.innerHTML = `
             <div class="panel">
                 <div class="panel-body">
-                    Error loading products:
+
+                    Unable to load products.
+
+                    <br><br>
+
                     ${escapeHtml(error.message)}
+
                 </div>
             </div>
         `;
@@ -1327,13 +1791,18 @@ async function renderProducts() {
 
 
 /* =========================================================
-   GENERIC SIMPLE TABLE
+   SIMPLE TABLE PAGES
 ========================================================= */
 
-async function renderSimpleTable(table, title) {
+async function renderSimpleTable(
+    table,
+    title
+) {
 
     const content =
-        document.getElementById("content");
+        document.getElementById(
+            "content"
+        );
 
     content.innerHTML = `
         <div class="loading">
@@ -1371,11 +1840,6 @@ async function renderSimpleTable(table, title) {
                                 )} found
                             </h3>
 
-                            <p>
-                                Records will appear here
-                                when they are added.
-                            </p>
-
                         </div>
 
                     </div>
@@ -1403,11 +1867,17 @@ async function renderSimpleTable(table, title) {
 
                             <tr>
 
-                                ${columns.map(column => `
-                                    <th>
-                                        ${escapeHtml(column)}
-                                    </th>
-                                `).join("")}
+                                ${columns
+                                    .map(
+                                        column => `
+                                            <th>
+                                                ${escapeHtml(
+                                                    column
+                                                )}
+                                            </th>
+                                        `
+                                    )
+                                    .join("")}
 
                             </tr>
 
@@ -1418,21 +1888,28 @@ async function renderSimpleTable(table, title) {
 
                             ${data
                                 .slice(0, 100)
-                                .map(row => `
-                                    <tr>
+                                .map(
+                                    row => `
 
-                                        ${columns
-                                            .map(column => `
-                                                <td>
-                                                    ${escapeHtml(
-                                                        row[column] ?? "-"
-                                                    )}
-                                                </td>
-                                            `)
-                                            .join("")}
+                                        <tr>
 
-                                    </tr>
-                                `)
+                                            ${columns
+                                                .map(
+                                                    column => `
+                                                        <td>
+                                                            ${escapeHtml(
+                                                                row[column] ??
+                                                                "-"
+                                                            )}
+                                                        </td>
+                                                    `
+                                                )
+                                                .join("")}
+
+                                        </tr>
+
+                                    `
+                                )
                                 .join("")}
 
                         </tbody>
@@ -1446,14 +1923,17 @@ async function renderSimpleTable(table, title) {
 
     } catch (error) {
 
-        console.error(error);
-
         content.innerHTML = `
             <div class="panel">
                 <div class="panel-body">
-                    Unable to load ${escapeHtml(title)}.
+
+                    Unable to load
+                    ${escapeHtml(title)}.
+
                     <br><br>
+
                     ${escapeHtml(error.message)}
+
                 </div>
             </div>
         `;
@@ -1468,6 +1948,7 @@ async function renderSimpleTable(table, title) {
 function showPage(page) {
 
     currentPage = page;
+
 
     document
         .querySelectorAll(".nav-item")
@@ -1488,12 +1969,14 @@ function showPage(page) {
 
     document.getElementById(
         "pageTitle"
-    ).textContent = info.title;
+    ).textContent =
+        info.title;
 
 
     document.getElementById(
         "pageSubtitle"
-    ).textContent = info.subtitle;
+    ).textContent =
+        info.subtitle;
 
 
     switch (page) {
@@ -1552,12 +2035,15 @@ function showPage(page) {
 
 
 /* =========================================================
-   ESCAPE HTML
+   HELPERS
 ========================================================= */
 
 function escapeHtml(value) {
 
-    if (value === null || value === undefined) {
+    if (
+        value === null ||
+        value === undefined
+    ) {
         return "";
     }
 
@@ -1570,14 +2056,11 @@ function escapeHtml(value) {
 }
 
 
-/* =========================================================
-   CURRENCY
-========================================================= */
-
 function formatCurrency(value) {
 
     const number =
         Number(value || 0);
+
 
     return number.toLocaleString(
         "en-IN",
@@ -1592,7 +2075,7 @@ function formatCurrency(value) {
 
 
 /* =========================================================
-   MODAL + ACTION BUTTON STYLES
+   MODAL STYLES
 ========================================================= */
 
 function addModalStylesIfNeeded() {
@@ -1608,6 +2091,7 @@ function addModalStylesIfNeeded() {
 
     const style =
         document.createElement("style");
+
 
     style.id =
         "customer-modal-styles";
@@ -1641,7 +2125,7 @@ function addModalStylesIfNeeded() {
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(15,23,42,0.55);
+            background: rgba(15,23,42,.55);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1655,7 +2139,7 @@ function addModalStylesIfNeeded() {
             overflow-y: auto;
             background: #fff;
             border-radius: 14px;
-            box-shadow: 0 25px 70px rgba(0,0,0,.2);
+            box-shadow: 0 25px 70px rgba(0,0,0,.20);
         }
 
         .modal-header {
@@ -1663,7 +2147,6 @@ function addModalStylesIfNeeded() {
             border-bottom: 1px solid #e5e7eb;
             display: flex;
             justify-content: space-between;
-            gap: 15px;
             align-items: flex-start;
         }
 
@@ -1679,8 +2162,8 @@ function addModalStylesIfNeeded() {
         }
 
         .modal-close {
-            width: 35px;
-            height: 35px;
+            width: 36px;
+            height: 36px;
             border: none;
             background: #f3f4f6;
             border-radius: 8px;
@@ -1727,7 +2210,9 @@ function addModalStylesIfNeeded() {
         .form-field textarea:focus,
         .form-field select:focus {
             border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+            box-shadow:
+                0 0 0 3px
+                rgba(37,99,235,.10);
         }
 
         .modal-footer {
@@ -1752,6 +2237,7 @@ function addModalStylesIfNeeded() {
         }
 
         @media (max-width: 700px) {
+
             .form-grid {
                 grid-template-columns: 1fr;
             }
@@ -1776,7 +2262,7 @@ function addModalStylesIfNeeded() {
 
 
 /* =========================================================
-   NAVIGATION EVENTS
+   INITIAL NAVIGATION
 ========================================================= */
 
 document
@@ -1786,17 +2272,15 @@ document
         button.addEventListener(
             "click",
             () => {
+
                 showPage(
                     button.dataset.page
                 );
+
             }
         );
 
     });
 
-
-/* =========================================================
-   INITIAL LOAD
-========================================================= */
 
 showPage("dashboard");
