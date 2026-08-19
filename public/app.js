@@ -1,12 +1,14 @@
 /* =========================================================
    MAHALAXMI ENTERPRISE CRM
-   Frontend JavaScript
+   Dashboard + Customers + Products
 ========================================================= */
 
 const API = "/api";
 
-let customersCache = [];
 let currentPage = "dashboard";
+
+let customersCache = [];
+let productsCache = [];
 
 
 /* =========================================================
@@ -62,25 +64,19 @@ const PAGE_INFO = {
    API HELPERS
 ========================================================= */
 
-async function apiRequest(
-    endpoint,
-    options = {}
-) {
+async function apiRequest(endpoint, options = {}) {
 
-    const response =
-        await fetch(
-            `${API}${endpoint}`,
-            {
-                ...options,
+    const response = await fetch(
+        `${API}${endpoint}`,
+        {
+            ...options,
 
-                headers: {
-                    "Content-Type":
-                        "application/json",
-
-                    ...(options.headers || {})
-                }
+            headers: {
+                "Content-Type": "application/json",
+                ...(options.headers || {})
             }
-        );
+        }
+    );
 
 
     let result;
@@ -88,8 +84,7 @@ async function apiRequest(
 
     try {
 
-        result =
-            await response.json();
+        result = await response.json();
 
     } catch {
 
@@ -100,10 +95,7 @@ async function apiRequest(
     }
 
 
-    if (
-        !response.ok ||
-        result.success === false
-    ) {
+    if (!response.ok || result.success === false) {
 
         throw new Error(
             result.error ||
@@ -126,45 +118,33 @@ async function apiGet(endpoint) {
 }
 
 
-async function apiPost(
-    endpoint,
-    data
-) {
+async function apiPost(endpoint, data) {
 
     return apiRequest(
         endpoint,
         {
             method: "POST",
-
-            body:
-                JSON.stringify(data)
+            body: JSON.stringify(data)
         }
     );
 
 }
 
 
-async function apiPut(
-    endpoint,
-    data
-) {
+async function apiPut(endpoint, data) {
 
     return apiRequest(
         endpoint,
         {
             method: "PUT",
-
-            body:
-                JSON.stringify(data)
+            body: JSON.stringify(data)
         }
     );
 
 }
 
 
-async function apiDelete(
-    endpoint
-) {
+async function apiDelete(endpoint) {
 
     return apiRequest(
         endpoint,
@@ -177,7 +157,7 @@ async function apiDelete(
 
 
 /* =========================================================
-   HTML HELPERS
+   HELPERS
 ========================================================= */
 
 function escapeHtml(value) {
@@ -186,38 +166,21 @@ function escapeHtml(value) {
         value === null ||
         value === undefined
     ) {
-
         return "";
-
     }
 
 
     return String(value)
 
-        .replace(
-            /&/g,
-            "&amp;"
-        )
+        .replace(/&/g, "&amp;")
 
-        .replace(
-            /</g,
-            "&lt;"
-        )
+        .replace(/</g, "&lt;")
 
-        .replace(
-            />/g,
-            "&gt;"
-        )
+        .replace(/>/g, "&gt;")
 
-        .replace(
-            /"/g,
-            "&quot;"
-        )
+        .replace(/"/g, "&quot;")
 
-        .replace(
-            /'/g,
-            "&#039;"
-        );
+        .replace(/'/g, "&#039;");
 
 }
 
@@ -242,7 +205,7 @@ function formatCurrency(value) {
 
 
 /* =========================================================
-   NAVIGATION
+   PAGE HEADER
 ========================================================= */
 
 function updatePageHeader(page) {
@@ -253,30 +216,19 @@ function updatePageHeader(page) {
 
 
     const title =
-        document.getElementById(
-            "pageTitle"
-        );
-
+        document.getElementById("pageTitle");
 
     const subtitle =
-        document.getElementById(
-            "pageSubtitle"
-        );
+        document.getElementById("pageSubtitle");
 
 
     if (title) {
-
-        title.textContent =
-            info.title;
-
+        title.textContent = info.title;
     }
 
 
     if (subtitle) {
-
-        subtitle.textContent =
-            info.subtitle;
-
+        subtitle.textContent = info.subtitle;
     }
 
 }
@@ -289,9 +241,7 @@ function updatePageHeader(page) {
 async function renderDashboard() {
 
     const content =
-        document.getElementById(
-            "content"
-        );
+        document.getElementById("content");
 
 
     content.innerHTML = `
@@ -304,16 +254,14 @@ async function renderDashboard() {
     try {
 
         const results =
-            await Promise.all(
-                [
-                    apiGet("/customers"),
-                    apiGet("/products"),
-                    apiGet("/enquiries"),
-                    apiGet("/quotations"),
-                    apiGet("/orders"),
-                    apiGet("/followups")
-                ]
-            );
+            await Promise.all([
+                apiGet("/customers"),
+                apiGet("/products"),
+                apiGet("/enquiries"),
+                apiGet("/quotations"),
+                apiGet("/orders"),
+                apiGet("/followups")
+            ]);
 
 
         const customers =
@@ -338,17 +286,13 @@ async function renderDashboard() {
         const enquiryData =
             enquiries.data || [];
 
-
         const quotationData =
             quotations.data || [];
 
 
         const quotationValue =
             quotationData.reduce(
-                (
-                    total,
-                    quote
-                ) =>
+                (total, quote) =>
                     total +
                     Number(
                         quote.grand_total || 0
@@ -509,9 +453,7 @@ async function renderDashboard() {
                                                 ${enquiryData
                                                     .slice(0, 5)
                                                     .map(
-                                                        enquiry =>
-                                                            `
-
+                                                        enquiry => `
                                                             <tr>
 
                                                                 <td>
@@ -523,33 +465,30 @@ async function renderDashboard() {
                                                                 <td>
                                                                     ${escapeHtml(
                                                                         enquiry.subject ||
-                                                                            "-"
+                                                                        "-"
                                                                     )}
                                                                 </td>
 
                                                                 <td>
                                                                     ${escapeHtml(
                                                                         enquiry.source ||
-                                                                            "-"
+                                                                        "-"
                                                                     )}
                                                                 </td>
 
                                                                 <td>
 
-                                                                    <span
-                                                                        class="badge badge-new"
-                                                                    >
+                                                                    <span class="badge badge-new">
                                                                         ${escapeHtml(
                                                                             enquiry.status ||
-                                                                                "New"
+                                                                            "New"
                                                                         )}
                                                                     </span>
 
                                                                 </td>
 
                                                             </tr>
-
-                                                            `
+                                                        `
                                                     )
                                                     .join("")}
 
@@ -637,26 +576,22 @@ async function renderDashboard() {
                                                 ${quotationData
                                                     .slice(0, 5)
                                                     .map(
-                                                        quote =>
-                                                            `
-
+                                                        quote => `
                                                             <tr>
 
                                                                 <td>
                                                                     ${escapeHtml(
                                                                         quote.quotation_number ||
-                                                                            "-"
+                                                                        "-"
                                                                     )}
                                                                 </td>
 
                                                                 <td>
 
-                                                                    <span
-                                                                        class="badge badge-draft"
-                                                                    >
+                                                                    <span class="badge badge-draft">
                                                                         ${escapeHtml(
                                                                             quote.status ||
-                                                                                "Draft"
+                                                                            "Draft"
                                                                         )}
                                                                     </span>
 
@@ -669,8 +604,7 @@ async function renderDashboard() {
                                                                 </td>
 
                                                             </tr>
-
-                                                            `
+                                                        `
                                                     )
                                                     .join("")}
 
@@ -756,7 +690,6 @@ async function renderDashboard() {
                 </div>
 
             </div>
-
         `;
 
 
@@ -766,10 +699,7 @@ async function renderDashboard() {
             )
             ?.addEventListener(
                 "click",
-                () =>
-                    showPage(
-                        "enquiries"
-                    )
+                () => showPage("enquiries")
             );
 
 
@@ -779,18 +709,13 @@ async function renderDashboard() {
             )
             ?.addEventListener(
                 "click",
-                () =>
-                    showPage(
-                        "quotations"
-                    )
+                () => showPage("quotations")
             );
 
 
     } catch (error) {
 
-        console.error(
-            error
-        );
+        console.error(error);
 
 
         content.innerHTML = `
@@ -820,7 +745,6 @@ async function renderDashboard() {
                 </div>
 
             </div>
-
         `;
 
     }
@@ -835,17 +759,13 @@ async function renderDashboard() {
 async function renderCustomers() {
 
     const content =
-        document.getElementById(
-            "content"
-        );
+        document.getElementById("content");
 
 
     content.innerHTML = `
-
         <div class="loading">
             Loading customers...
         </div>
-
     `;
 
 
@@ -856,20 +776,6 @@ async function renderCustomers() {
                 "/customers"
             );
 
-
-        /*
-          Supports BOTH:
-
-          {
-              data: [...]
-          }
-
-          AND
-
-          {
-              customers: [...]
-          }
-        */
 
         customersCache =
             result.data ||
@@ -882,9 +788,7 @@ async function renderCustomers() {
 
     } catch (error) {
 
-        console.error(
-            error
-        );
+        console.error(error);
 
 
         content.innerHTML = `
@@ -914,7 +818,6 @@ async function renderCustomers() {
                 </div>
 
             </div>
-
         `;
 
     }
@@ -922,26 +825,11 @@ async function renderCustomers() {
 }
 
 
-/* =========================================================
-   CUSTOMER PAGE
-========================================================= */
-
 function renderCustomersPage() {
 
     const content =
-        document.getElementById(
-            "content"
-        );
+        document.getElementById("content");
 
-
-    /*
-      IMPORTANT:
-
-      This function creates the search input
-      ONLY ONCE.
-
-      It does NOT run again when typing.
-    */
 
     content.innerHTML = `
 
@@ -949,39 +837,27 @@ function renderCustomersPage() {
 
 
             <input
-
                 id="customerSearch"
-
                 class="search-box"
-
                 type="search"
-
                 autocomplete="off"
-
                 spellcheck="false"
-
                 placeholder="
                     Search company, contact, mobile, GST...
                 "
-
             >
 
 
             <button
-
                 id="addCustomerButton"
-
                 class="primary-button"
-
                 type="button"
-
             >
                 + Add Customer
             </button>
 
 
         </div>
-
 
 
         <div class="panel">
@@ -1008,90 +884,46 @@ function renderCustomersPage() {
             </div>
 
 
-
             <div class="table-wrapper">
 
                 <table>
-
 
                     <thead>
 
                         <tr>
 
-                            <th>
-                                Company
-                            </th>
-
-                            <th>
-                                Contact
-                            </th>
-
-                            <th>
-                                Mobile
-                            </th>
-
-                            <th>
-                                City
-                            </th>
-
-                            <th>
-                                GST
-                            </th>
-
-                            <th>
-                                Type
-                            </th>
-
-                            <th>
-                                Action
-                            </th>
+                            <th>Company</th>
+                            <th>Contact</th>
+                            <th>Mobile</th>
+                            <th>City</th>
+                            <th>GST</th>
+                            <th>Type</th>
+                            <th>Action</th>
 
                         </tr>
 
                     </thead>
 
 
-
                     <tbody
                         id="customersTableBody"
-                    >
-                    </tbody>
-
+                    ></tbody>
 
                 </table>
 
             </div>
 
-
         </div>
-
 
 
         <div
             id="customerModal"
         ></div>
-
     `;
 
 
-    /*
-      Draw initial rows
-    */
+    renderCustomerRows("");
 
-    renderCustomerRows(
-        ""
-    );
-
-
-    /*
-      SEARCH EVENT
-
-      This is the important fix.
-
-      We NEVER replace the search input.
-
-      We only replace the tbody.
-    */
 
     const searchInput =
         document.getElementById(
@@ -1104,6 +936,13 @@ function renderCustomersPage() {
         searchInput.addEventListener(
             "input",
             function () {
+
+                /*
+                  IMPORTANT:
+
+                  Only table rows are updated.
+                  Search input is never recreated.
+                */
 
                 renderCustomerRows(
                     this.value
@@ -1122,12 +961,9 @@ function renderCustomersPage() {
                     "Escape"
                 ) {
 
-                    this.value =
-                        "";
+                    this.value = "";
 
-                    renderCustomerRows(
-                        ""
-                    );
+                    renderCustomerRows("");
 
                 }
 
@@ -1136,10 +972,6 @@ function renderCustomersPage() {
 
     }
 
-
-    /*
-      ADD CUSTOMER
-    */
 
     const addButton =
         document.getElementById(
@@ -1161,12 +993,6 @@ function renderCustomersPage() {
     }
 
 
-    /*
-      EDIT / DELETE
-
-      Event delegation.
-    */
-
     const tbody =
         document.getElementById(
             "customersTableBody"
@@ -1178,7 +1004,6 @@ function renderCustomersPage() {
         tbody.addEventListener(
             "click",
             function (event) {
-
 
                 const editButton =
                     event.target.closest(
@@ -1197,7 +1022,6 @@ function renderCustomersPage() {
                     return;
 
                 }
-
 
 
                 const deleteButton =
@@ -1223,10 +1047,6 @@ function renderCustomersPage() {
 
 }
 
-
-/* =========================================================
-   CUSTOMER ROWS
-========================================================= */
 
 function renderCustomerRows(
     searchValue = ""
@@ -1257,29 +1077,18 @@ function renderCustomerRows(
         customersCache.filter(
             customer => {
 
-
                 const searchable = [
 
                     customer.company_name,
-
                     customer.contact_person,
-
                     customer.mobile,
-
                     customer.whatsapp,
-
                     customer.email,
-
                     customer.city,
-
                     customer.state,
-
                     customer.pincode,
-
                     customer.gst_number,
-
                     customer.customer_type,
-
                     customer.address
 
                 ]
@@ -1296,10 +1105,6 @@ function renderCustomerRows(
         );
 
 
-    /*
-      Update only count
-    */
-
     const count =
         document.getElementById(
             "customerCount"
@@ -1313,10 +1118,6 @@ function renderCustomerRows(
 
     }
 
-
-    /*
-      NO RESULTS
-    */
 
     if (
         filtered.length ===
@@ -1332,15 +1133,12 @@ function renderCustomerRows(
                     <div class="empty">
 
                         <div class="empty-icon">
-
                             ${
                                 search
                                     ? "🔍"
                                     : "👥"
                             }
-
                         </div>
-
 
                         ${
                             search
@@ -1353,7 +1151,6 @@ function renderCustomerRows(
                 </td>
 
             </tr>
-
         `;
 
         return;
@@ -1361,91 +1158,66 @@ function renderCustomerRows(
     }
 
 
-    /*
-      CUSTOMER ROWS
-    */
-
     tbody.innerHTML =
         filtered
             .map(
-                customer =>
-                    `
+                customer => `
 
                     <tr>
-
 
                         <td>
 
                             <strong>
-
                                 ${escapeHtml(
                                     customer.company_name ||
-                                        "-"
+                                    "-"
                                 )}
-
                             </strong>
 
                         </td>
 
 
-
                         <td>
-
                             ${escapeHtml(
                                 customer.contact_person ||
-                                    "-"
+                                "-"
                             )}
-
                         </td>
 
 
-
                         <td>
-
                             ${escapeHtml(
                                 customer.mobile ||
-                                    "-"
+                                "-"
                             )}
-
                         </td>
 
 
-
                         <td>
-
                             ${escapeHtml(
                                 customer.city ||
-                                    "-"
+                                "-"
                             )}
-
                         </td>
 
 
-
                         <td>
-
                             ${escapeHtml(
                                 customer.gst_number ||
-                                    "-"
+                                "-"
                             )}
-
                         </td>
 
 
-
                         <td>
-
                             ${escapeHtml(
                                 customer.customer_type ||
-                                    "-"
+                                "-"
                             )}
-
                         </td>
 
 
-
                         <td>
-
 
                             <div
                                 style="
@@ -1454,64 +1226,44 @@ function renderCustomerRows(
                                 "
                             >
 
-
                                 <button
-
                                     type="button"
-
                                     class="
                                         small-action
                                         edit-customer
                                     "
-
-                                    data-id="
-                                        ${customer.id}
-                                    "
-
+                                    data-id="${customer.id}"
                                 >
                                     Edit
                                 </button>
 
 
-
                                 <button
-
                                     type="button"
-
                                     class="
                                         small-action
                                         danger
                                         delete-customer
                                     "
-
-                                    data-id="
-                                        ${customer.id}
-                                    "
-
+                                    data-id="${customer.id}"
                                 >
                                     Delete
                                 </button>
 
-
                             </div>
-
 
                         </td>
 
-
                     </tr>
-
-                    `
+                `
             )
-            .join(
-                ""
-            );
+            .join("");
 
 }
 
 
 /* =========================================================
-   ADD / EDIT CUSTOMER MODAL
+   CUSTOMER MODAL
 ========================================================= */
 
 function openCustomerModal(
@@ -1539,12 +1291,8 @@ function openCustomerModal(
         customerId
             ? customersCache.find(
                 item =>
-                    Number(
-                        item.id
-                    ) ===
-                    Number(
-                        customerId
-                    )
+                    Number(item.id) ===
+                    Number(customerId)
             )
             : null;
 
@@ -1556,19 +1304,12 @@ function openCustomerModal(
             id="customerModalBackdrop"
         >
 
-
             <div
                 class="modal"
-                onclick="
-                    event.stopPropagation()
-                "
+                onclick="event.stopPropagation()"
             >
 
-
-                <div
-                    class="modal-header"
-                >
-
+                <div class="modal-header">
 
                     <div>
 
@@ -1582,208 +1323,132 @@ function openCustomerModal(
 
                         </h2>
 
-
                         <p>
-
-                            ${
-                                customer
-                                    ? "Update customer information"
-                                    : "Enter customer information"
-                            }
-
+                            Enter customer information
                         </p>
 
                     </div>
 
 
-
                     <button
-
                         type="button"
-
                         class="modal-close"
-
-                        id="
-                            closeCustomerModalButton
-                        "
-
+                        id="closeCustomerModalButton"
                     >
                         ×
                     </button>
 
-
                 </div>
 
 
-
-                <form
-                    id="customerForm"
-                >
+                <form id="customerForm">
 
 
-                    <div
-                        class="form-grid"
-                    >
+                    <div class="form-grid">
 
 
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Company Name *
                             </label>
 
-
                             <input
-
                                 name="company_name"
-
                                 required
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.company_name ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.company_name ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Contact Person
                             </label>
 
-
                             <input
-
                                 name="contact_person"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.contact_person ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.contact_person ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Mobile
                             </label>
 
-
                             <input
-
                                 name="mobile"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.mobile ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.mobile ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 WhatsApp
                             </label>
 
-
                             <input
-
                                 name="whatsapp"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.whatsapp ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.whatsapp ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Email
                             </label>
 
-
                             <input
-
                                 type="email"
-
                                 name="email"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.email ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.email ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 GST Number
                             </label>
 
-
                             <input
-
                                 name="gst_number"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.gst_number ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.gst_number ||
+                                    ""
+                                )}"
                             >
 
                         </div>
-
 
 
                         <div
@@ -1797,109 +1462,73 @@ function openCustomerModal(
                                 Address
                             </label>
 
-
                             <textarea
-
                                 name="address"
-
                                 rows="2"
-
                             >${escapeHtml(
                                 customer?.address ||
-                                    ""
+                                ""
                             )}</textarea>
-
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 City
                             </label>
 
-
                             <input
-
                                 name="city"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.city ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.city ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 State
                             </label>
 
-
                             <input
-
                                 name="state"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.state ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.state ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Pincode
                             </label>
 
-
                             <input
-
                                 name="pincode"
-
-                                value="
-                                    ${escapeHtml(
-                                        customer?.pincode ||
-                                            ""
-                                    )}
-                                "
-
+                                value="${escapeHtml(
+                                    customer?.pincode ||
+                                    ""
+                                )}"
                             >
 
                         </div>
 
 
-
-                        <div
-                            class="form-field"
-                        >
+                        <div class="form-field">
 
                             <label>
                                 Customer Type
                             </label>
-
 
                             <select
                                 name="customer_type"
@@ -1908,7 +1537,6 @@ function openCustomerModal(
                                 <option value="">
                                     Select type
                                 </option>
-
 
                                 <option
                                     value="Industrial"
@@ -1922,7 +1550,6 @@ function openCustomerModal(
                                     Industrial
                                 </option>
 
-
                                 <option
                                     value="OEM"
                                     ${
@@ -1934,7 +1561,6 @@ function openCustomerModal(
                                 >
                                     OEM
                                 </option>
-
 
                                 <option
                                     value="Dealer"
@@ -1948,7 +1574,6 @@ function openCustomerModal(
                                     Dealer
                                 </option>
 
-
                                 <option
                                     value="Trader"
                                     ${
@@ -1960,7 +1585,6 @@ function openCustomerModal(
                                 >
                                     Trader
                                 </option>
-
 
                                 <option
                                     value="Project"
@@ -1974,11 +1598,9 @@ function openCustomerModal(
                                     Project
                                 </option>
 
-
                             </select>
 
                         </div>
-
 
 
                         <div
@@ -1992,18 +1614,13 @@ function openCustomerModal(
                                 Notes
                             </label>
 
-
                             <textarea
-
                                 name="notes"
-
                                 rows="3"
-
                             >${escapeHtml(
                                 customer?.notes ||
-                                    ""
+                                ""
                             )}</textarea>
-
 
                         </div>
 
@@ -2011,38 +1628,22 @@ function openCustomerModal(
                     </div>
 
 
-
-                    <div
-                        class="modal-footer"
-                    >
+                    <div class="modal-footer">
 
 
                         <button
-
                             type="button"
-
                             class="secondary-button"
-
-                            id="
-                                cancelCustomerButton
-                            "
-
+                            id="cancelCustomerButton"
                         >
                             Cancel
                         </button>
 
 
-
                         <button
-
                             type="submit"
-
                             class="primary-button"
-
-                            id="
-                                saveCustomerButton
-                            "
-
+                            id="saveCustomerButton"
                         >
 
                             ${
@@ -2062,15 +1663,9 @@ function openCustomerModal(
 
             </div>
 
-
         </div>
-
     `;
 
-
-    /*
-      CLOSE
-    */
 
     document
         .getElementById(
@@ -2098,9 +1693,7 @@ function openCustomerModal(
         )
         ?.addEventListener(
             "click",
-            function (
-                event
-            ) {
+            function (event) {
 
                 if (
                     event.target.id ===
@@ -2115,19 +1708,13 @@ function openCustomerModal(
         );
 
 
-    /*
-      SAVE
-    */
-
     document
         .getElementById(
             "customerForm"
         )
         ?.addEventListener(
             "submit",
-            function (
-                event
-            ) {
+            function (event) {
 
                 saveCustomer(
                     event,
@@ -2137,10 +1724,6 @@ function openCustomerModal(
             }
         );
 
-
-    /*
-      FOCUS COMPANY
-    */
 
     setTimeout(
         function () {
@@ -2152,7 +1735,7 @@ function openCustomerModal(
                 ?.focus();
 
         },
-        50
+        30
     );
 
 }
@@ -2168,8 +1751,7 @@ function closeCustomerModal() {
 
     if (container) {
 
-        container.innerHTML =
-            "";
+        container.innerHTML = "";
 
     }
 
@@ -2193,24 +1775,17 @@ async function saveCustomer(
 
 
     const formData =
-        new FormData(
-            form
-        );
+        new FormData(form);
 
 
     const data = {};
 
 
     formData.forEach(
-        (
-            value,
-            key
-        ) => {
+        (value, key) => {
 
             const cleaned =
-                String(
-                    value
-                ).trim();
+                String(value).trim();
 
 
             if (
@@ -2260,7 +1835,6 @@ async function saveCustomer(
 
     try {
 
-
         if (
             customerId
         ) {
@@ -2275,9 +1849,7 @@ async function saveCustomer(
                 "Customer updated successfully."
             );
 
-
         } else {
-
 
             await apiPost(
                 "/customers",
@@ -2294,13 +1866,10 @@ async function saveCustomer(
 
         closeCustomerModal();
 
-
         await renderCustomers();
 
 
-    } catch (
-        error
-    ) {
+    } catch (error) {
 
         console.error(
             error
@@ -2341,12 +1910,8 @@ async function deleteCustomer(
     const customer =
         customersCache.find(
             item =>
-                Number(
-                    item.id
-                ) ===
-                Number(
-                    customerId
-                )
+                Number(item.id) ===
+                Number(customerId)
         );
 
 
@@ -2378,7 +1943,6 @@ async function deleteCustomer(
 
     try {
 
-
         await apiDelete(
             `/customers/${customerId}`
         );
@@ -2392,9 +1956,7 @@ async function deleteCustomer(
         await renderCustomers();
 
 
-    } catch (
-        error
-    ) {
+    } catch (error) {
 
         console.error(
             error
@@ -2424,11 +1986,9 @@ async function renderProducts() {
 
 
     content.innerHTML = `
-
         <div class="loading">
             Loading products...
         </div>
-
     `;
 
 
@@ -2440,211 +2000,19 @@ async function renderProducts() {
             );
 
 
-        const data =
+        productsCache =
             result.data || [];
 
 
-        content.innerHTML = `
+        renderProductsPage();
 
-            <div class="page-toolbar">
 
+    } catch (error) {
 
-                <input
+        console.error(
+            error
+        );
 
-                    class="search-box"
-
-                    placeholder="Search products..."
-
-                    disabled
-
-                >
-
-
-                <button
-
-                    class="primary-button"
-
-                    type="button"
-
-                    disabled
-
-                >
-                    + Add Product
-                </button>
-
-
-            </div>
-
-
-
-            <div class="panel">
-
-
-                <div class="table-wrapper">
-
-
-                    <table>
-
-
-                        <thead>
-
-                            <tr>
-
-                                <th>
-                                    Product
-                                </th>
-
-                                <th>
-                                    Brand
-                                </th>
-
-                                <th>
-                                    Model
-                                </th>
-
-                                <th>
-                                    Selling Price
-                                </th>
-
-                                <th>
-                                    Stock
-                                </th>
-
-                                <th>
-                                    Unit
-                                </th>
-
-                            </tr>
-
-                        </thead>
-
-
-
-                        <tbody>
-
-
-                            ${
-                                data.length === 0
-
-                                    ? `
-
-                                        <tr>
-
-                                            <td
-                                                colspan="6"
-                                            >
-
-                                                <div class="empty">
-
-                                                    <div class="empty-icon">
-                                                        📦
-                                                    </div>
-
-                                                    No products found
-
-                                                </div>
-
-                                            </td>
-
-                                        </tr>
-
-                                    `
-
-                                    : data
-                                        .map(
-                                            product =>
-                                                `
-
-                                                <tr>
-
-                                                    <td>
-
-                                                        <strong>
-
-                                                            ${escapeHtml(
-                                                                product.product_name ||
-                                                                    "-"
-                                                            )}
-
-                                                        </strong>
-
-                                                    </td>
-
-
-                                                    <td>
-
-                                                        ${escapeHtml(
-                                                            product.brand ||
-                                                                "-"
-                                                        )}
-
-                                                    </td>
-
-
-                                                    <td>
-
-                                                        ${escapeHtml(
-                                                            product.model ||
-                                                                "-"
-                                                        )}
-
-                                                    </td>
-
-
-                                                    <td>
-
-                                                        ${formatCurrency(
-                                                            product.selling_price
-                                                        )}
-
-                                                    </td>
-
-
-                                                    <td>
-
-                                                        ${escapeHtml(
-                                                            product.stock_qty ??
-                                                                0
-                                                        )}
-
-                                                    </td>
-
-
-                                                    <td>
-
-                                                        ${escapeHtml(
-                                                            product.unit ||
-                                                                "Nos"
-                                                        )}
-
-                                                    </td>
-
-                                                </tr>
-
-                                                `
-                                        )
-                                        .join("")
-
-                            }
-
-
-                        </tbody>
-
-
-                    </table>
-
-
-                </div>
-
-
-            </div>
-
-        `;
-
-
-    } catch (
-        error
-    ) {
 
         content.innerHTML = `
 
@@ -2652,18 +2020,27 @@ async function renderProducts() {
 
                 <div class="panel-body">
 
-                    Unable to load products.
+                    <div class="empty">
 
-                    <br><br>
+                        <div class="empty-icon">
+                            ⚠️
+                        </div>
 
-                    ${escapeHtml(
-                        error.message
-                    )}
+                        <h3>
+                            Unable to load products
+                        </h3>
+
+                        <p>
+                            ${escapeHtml(
+                                error.message
+                            )}
+                        </p>
+
+                    </div>
 
                 </div>
 
             </div>
-
         `;
 
     }
@@ -2672,7 +2049,1361 @@ async function renderProducts() {
 
 
 /* =========================================================
-   GENERIC TABLE PAGES
+   PRODUCT PAGE
+========================================================= */
+
+function renderProductsPage() {
+
+    const content =
+        document.getElementById(
+            "content"
+        );
+
+
+    content.innerHTML = `
+
+        <div class="page-toolbar">
+
+
+            <input
+                id="productSearch"
+                class="search-box"
+                type="search"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="
+                    Search product, brand, model, part no...
+                "
+            >
+
+
+            <button
+                id="addProductButton"
+                class="primary-button"
+                type="button"
+            >
+                + Add Product
+            </button>
+
+
+        </div>
+
+
+
+        <div class="panel">
+
+
+            <div class="panel-header">
+
+                <h2>
+
+                    Products
+
+                    <span
+                        id="productCount"
+                        style="
+                            color:#6b7280;
+                            font-size:12px;
+                        "
+                    >
+                        (${productsCache.length})
+                    </span>
+
+                </h2>
+
+            </div>
+
+
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Product
+                            </th>
+
+                            <th>
+                                Brand
+                            </th>
+
+                            <th>
+                                Model
+                            </th>
+
+                            <th>
+                                Part No.
+                            </th>
+
+                            <th>
+                                Purchase
+                            </th>
+
+                            <th>
+                                Selling
+                            </th>
+
+                            <th>
+                                Stock
+                            </th>
+
+                            <th>
+                                Status
+                            </th>
+
+                            <th>
+                                Action
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody
+                        id="productsTableBody"
+                    ></tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="productModal"
+        ></div>
+    `;
+
+
+    renderProductRows("");
+
+
+    const searchInput =
+        document.getElementById(
+            "productSearch"
+        );
+
+
+    if (searchInput) {
+
+        searchInput.addEventListener(
+            "input",
+            function () {
+
+                /*
+                  Same fix as Customers:
+                  NEVER recreate the input.
+                */
+
+                renderProductRows(
+                    this.value
+                );
+
+            }
+        );
+
+
+        searchInput.addEventListener(
+            "keydown",
+            function (event) {
+
+                if (
+                    event.key ===
+                    "Escape"
+                ) {
+
+                    this.value = "";
+
+                    renderProductRows("");
+
+                }
+
+            }
+        );
+
+    }
+
+
+    const addButton =
+        document.getElementById(
+            "addProductButton"
+        );
+
+
+    if (addButton) {
+
+        addButton.addEventListener(
+            "click",
+            function () {
+
+                openProductModal();
+
+            }
+        );
+
+    }
+
+
+    const tbody =
+        document.getElementById(
+            "productsTableBody"
+        );
+
+
+    if (tbody) {
+
+        tbody.addEventListener(
+            "click",
+            function (event) {
+
+
+                const editButton =
+                    event.target.closest(
+                        ".edit-product"
+                    );
+
+
+                if (editButton) {
+
+                    openProductModal(
+                        Number(
+                            editButton.dataset.id
+                        )
+                    );
+
+                    return;
+
+                }
+
+
+                const deleteButton =
+                    event.target.closest(
+                        ".delete-product"
+                    );
+
+
+                if (deleteButton) {
+
+                    deleteProduct(
+                        Number(
+                            deleteButton.dataset.id
+                        )
+                    );
+
+                }
+
+            }
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   PRODUCT STATUS
+========================================================= */
+
+function getStockStatus(
+    stock,
+    minimumStock
+) {
+
+    const current =
+        Number(stock || 0);
+
+    const minimum =
+        Number(minimumStock || 0);
+
+
+    if (
+        current <= 0
+    ) {
+
+        return {
+            text: "Out of Stock",
+            className: "badge-danger"
+        };
+
+    }
+
+
+    if (
+        minimum > 0 &&
+        current <= minimum
+    ) {
+
+        return {
+            text: "Low Stock",
+            className: "badge-pending"
+        };
+
+    }
+
+
+    return {
+        text: "In Stock",
+        className: "badge-paid"
+    };
+
+}
+
+
+/* =========================================================
+   PRODUCT ROWS
+========================================================= */
+
+function renderProductRows(
+    searchValue = ""
+) {
+
+    const tbody =
+        document.getElementById(
+            "productsTableBody"
+        );
+
+
+    if (!tbody) {
+
+        return;
+
+    }
+
+
+    const search =
+        String(
+            searchValue
+        )
+        .trim()
+        .toLowerCase();
+
+
+    const filtered =
+        productsCache.filter(
+            product => {
+
+                const searchable = [
+
+                    product.product_name,
+                    product.brand,
+                    product.model,
+                    product.part_number,
+                    product.category,
+                    product.description
+
+                ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+
+                return searchable.includes(
+                    search
+                );
+
+            }
+        );
+
+
+    const count =
+        document.getElementById(
+            "productCount"
+        );
+
+
+    if (count) {
+
+        count.textContent =
+            `(${filtered.length})`;
+
+    }
+
+
+    if (
+        filtered.length ===
+        0
+    ) {
+
+        tbody.innerHTML = `
+
+            <tr>
+
+                <td
+                    colspan="9"
+                >
+
+                    <div class="empty">
+
+                        <div class="empty-icon">
+                            ${
+                                search
+                                    ? "🔍"
+                                    : "📦"
+                            }
+                        </div>
+
+                        ${
+                            search
+                                ? "No products match your search"
+                                : "No products yet"
+                        }
+
+                    </div>
+
+                </td>
+
+            </tr>
+        `;
+
+        return;
+
+    }
+
+
+    tbody.innerHTML =
+        filtered
+            .map(
+                product => {
+
+                    const stock =
+                        Number(
+                            product.stock_qty || 0
+                        );
+
+
+                    const minimum =
+                        Number(
+                            product.min_stock_qty || 0
+                        );
+
+
+                    const status =
+                        getStockStatus(
+                            stock,
+                            minimum
+                        );
+
+
+                    return `
+
+                        <tr>
+
+
+                            <td>
+
+                                <strong>
+
+                                    ${escapeHtml(
+                                        product.product_name ||
+                                        "-"
+                                    )}
+
+                                </strong>
+
+                            </td>
+
+
+                            <td>
+
+                                ${escapeHtml(
+                                    product.brand ||
+                                    "-"
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                ${escapeHtml(
+                                    product.model ||
+                                    "-"
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                ${escapeHtml(
+                                    product.part_number ||
+                                    "-"
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                ${formatCurrency(
+                                    product.purchase_price
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                ${formatCurrency(
+                                    product.selling_price
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                <strong>
+                                    ${stock}
+                                </strong>
+
+                                ${escapeHtml(
+                                    product.unit ||
+                                    "Nos"
+                                )}
+
+                            </td>
+
+
+                            <td>
+
+                                <span
+                                    class="
+                                        badge
+                                        ${status.className}
+                                    "
+                                >
+                                    ${status.text}
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <div
+                                    style="
+                                        display:flex;
+                                        gap:6px;
+                                    "
+                                >
+
+
+                                    <button
+                                        type="button"
+                                        class="
+                                            small-action
+                                            edit-product
+                                        "
+                                        data-id="${product.id}"
+                                    >
+                                        Edit
+                                    </button>
+
+
+                                    <button
+                                        type="button"
+                                        class="
+                                            small-action
+                                            danger
+                                            delete-product
+                                        "
+                                        data-id="${product.id}"
+                                    >
+                                        Delete
+                                    </button>
+
+
+                                </div>
+
+                            </td>
+
+
+                        </tr>
+                    `;
+                }
+            )
+            .join("");
+
+}
+
+
+/* =========================================================
+   PRODUCT MODAL
+========================================================= */
+
+function openProductModal(
+    productId = null
+) {
+
+    const container =
+        document.getElementById(
+            "productModal"
+        );
+
+
+    if (!container) {
+
+        alert(
+            "Product form could not be opened."
+        );
+
+        return;
+
+    }
+
+
+    const product =
+        productId
+            ? productsCache.find(
+                item =>
+                    Number(item.id) ===
+                    Number(productId)
+            )
+            : null;
+
+
+    container.innerHTML = `
+
+        <div
+            class="modal-backdrop"
+            id="productModalBackdrop"
+        >
+
+
+            <div
+                class="modal"
+                onclick="
+                    event.stopPropagation()
+                "
+            >
+
+
+                <div class="modal-header">
+
+
+                    <div>
+
+                        <h2>
+
+                            ${
+                                product
+                                    ? "Edit Product"
+                                    : "Add Product"
+                            }
+
+                        </h2>
+
+                        <p>
+                            Enter product and stock information
+                        </p>
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="modal-close"
+                        id="closeProductModalButton"
+                    >
+                        ×
+                    </button>
+
+
+                </div>
+
+
+
+                <form
+                    id="productForm"
+                >
+
+
+                    <div class="form-grid">
+
+
+                        <div class="form-field full">
+
+                            <label>
+                                Product Name *
+                            </label>
+
+                            <input
+                                name="product_name"
+                                required
+                                value="${escapeHtml(
+                                    product?.product_name ||
+                                    ""
+                                )}"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Brand
+                            </label>
+
+                            <input
+                                name="brand"
+                                value="${escapeHtml(
+                                    product?.brand ||
+                                    ""
+                                )}"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Model
+                            </label>
+
+                            <input
+                                name="model"
+                                value="${escapeHtml(
+                                    product?.model ||
+                                    ""
+                                )}"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Part Number
+                            </label>
+
+                            <input
+                                name="part_number"
+                                value="${escapeHtml(
+                                    product?.part_number ||
+                                    ""
+                                )}"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Category
+                            </label>
+
+                            <input
+                                name="category"
+                                value="${escapeHtml(
+                                    product?.category ||
+                                    ""
+                                )}"
+                            >
+
+                        </div>
+
+
+                        <div
+                            class="
+                                form-field
+                                full
+                            "
+                        >
+
+                            <label>
+                                Description
+                            </label>
+
+                            <textarea
+                                name="description"
+                                rows="3"
+                            >${escapeHtml(
+                                product?.description ||
+                                ""
+                            )}</textarea>
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Purchase Price
+                            </label>
+
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                name="purchase_price"
+                                value="${
+                                    product?.purchase_price ??
+                                    "0"
+                                }"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Selling Price
+                            </label>
+
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                name="selling_price"
+                                value="${
+                                    product?.selling_price ??
+                                    "0"
+                                }"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Stock Quantity
+                            </label>
+
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                name="stock_qty"
+                                value="${
+                                    product?.stock_qty ??
+                                    "0"
+                                }"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Minimum Stock
+                            </label>
+
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                name="min_stock_qty"
+                                value="${
+                                    product?.min_stock_qty ??
+                                    "0"
+                                }"
+                            >
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Unit
+                            </label>
+
+                            <select
+                                name="unit"
+                            >
+
+                                ${
+                                    [
+                                        "Nos",
+                                        "Set",
+                                        "Box",
+                                        "Piece",
+                                        "Meter",
+                                        "Kg",
+                                        "Litre"
+                                    ]
+                                    .map(
+                                        unit =>
+                                            `
+                                                <option
+                                                    value="${unit}"
+                                                    ${
+                                                        (
+                                                            product?.unit ||
+                                                            "Nos"
+                                                        ) === unit
+                                                            ? "selected"
+                                                            : ""
+                                                    }
+                                                >
+                                                    ${unit}
+                                                </option>
+                                            `
+                                    )
+                                    .join("")
+                                }
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-field">
+
+                            <label>
+                                Status
+                            </label>
+
+                            <select
+                                name="is_active"
+                            >
+
+                                <option
+                                    value="1"
+                                    ${
+                                        (
+                                            product?.is_active ??
+                                            1
+                                        ) == 1
+                                            ? "selected"
+                                            : ""
+                                    }
+                                >
+                                    Active
+                                </option>
+
+
+                                <option
+                                    value="0"
+                                    ${
+                                        Number(
+                                            product?.is_active
+                                        ) === 0
+                                            ? "selected"
+                                            : ""
+                                    }
+                                >
+                                    Inactive
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                    </div>
+
+
+
+                    <div class="modal-footer">
+
+
+                        <button
+                            type="button"
+                            class="secondary-button"
+                            id="cancelProductButton"
+                        >
+                            Cancel
+                        </button>
+
+
+                        <button
+                            type="submit"
+                            class="primary-button"
+                            id="saveProductButton"
+                        >
+
+                            ${
+                                product
+                                    ? "Update Product"
+                                    : "Save Product"
+                            }
+
+                        </button>
+
+
+                    </div>
+
+
+                </form>
+
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    document
+        .getElementById(
+            "closeProductModalButton"
+        )
+        ?.addEventListener(
+            "click",
+            closeProductModal
+        );
+
+
+    document
+        .getElementById(
+            "cancelProductButton"
+        )
+        ?.addEventListener(
+            "click",
+            closeProductModal
+        );
+
+
+    document
+        .getElementById(
+            "productModalBackdrop"
+        )
+        ?.addEventListener(
+            "click",
+            function (event) {
+
+                if (
+                    event.target.id ===
+                    "productModalBackdrop"
+                ) {
+
+                    closeProductModal();
+
+                }
+
+            }
+        );
+
+
+    document
+        .getElementById(
+            "productForm"
+        )
+        ?.addEventListener(
+            "submit",
+            function (event) {
+
+                saveProduct(
+                    event,
+                    productId
+                );
+
+            }
+        );
+
+
+    setTimeout(
+        function () {
+
+            document
+                .querySelector(
+                    "#productForm input[name='product_name']"
+                )
+                ?.focus();
+
+        },
+        30
+    );
+
+}
+
+
+function closeProductModal() {
+
+    const container =
+        document.getElementById(
+            "productModal"
+        );
+
+
+    if (container) {
+
+        container.innerHTML = "";
+
+    }
+
+}
+
+
+/* =========================================================
+   SAVE PRODUCT
+========================================================= */
+
+async function saveProduct(
+    event,
+    productId
+) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.target;
+
+
+    const formData =
+        new FormData(
+            form
+        );
+
+
+    const data = {};
+
+
+    formData.forEach(
+        (value, key) => {
+
+            const cleaned =
+                String(
+                    value
+                ).trim();
+
+
+            if (
+                cleaned !== ""
+            ) {
+
+                data[key] =
+                    cleaned;
+
+            }
+
+        }
+    );
+
+
+    if (
+        !data.product_name
+    ) {
+
+        alert(
+            "Product name is required."
+        );
+
+        return;
+
+    }
+
+
+    /*
+      Convert numeric fields
+    */
+
+    data.purchase_price =
+        Number(
+            data.purchase_price ||
+            0
+        );
+
+
+    data.selling_price =
+        Number(
+            data.selling_price ||
+            0
+        );
+
+
+    data.stock_qty =
+        Number(
+            data.stock_qty ||
+            0
+        );
+
+
+    data.min_stock_qty =
+        Number(
+            data.min_stock_qty ||
+            0
+        );
+
+
+    data.is_active =
+        Number(
+            data.is_active ??
+            1
+        );
+
+
+    const button =
+        document.getElementById(
+            "saveProductButton"
+        );
+
+
+    if (button) {
+
+        button.disabled =
+            true;
+
+        button.textContent =
+            productId
+                ? "Updating..."
+                : "Saving...";
+
+    }
+
+
+    try {
+
+
+        if (
+            productId
+        ) {
+
+            await apiPut(
+                `/products/${productId}`,
+                data
+            );
+
+
+            alert(
+                "Product updated successfully."
+            );
+
+
+        } else {
+
+
+            await apiPost(
+                "/products",
+                data
+            );
+
+
+            alert(
+                "Product created successfully."
+            );
+
+        }
+
+
+        closeProductModal();
+
+
+        await renderProducts();
+
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+
+        alert(
+            "Unable to save product:\n\n" +
+            error.message
+        );
+
+
+        if (button) {
+
+            button.disabled =
+                false;
+
+            button.textContent =
+                productId
+                    ? "Update Product"
+                    : "Save Product";
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   DELETE PRODUCT
+========================================================= */
+
+async function deleteProduct(
+    productId
+) {
+
+    const product =
+        productsCache.find(
+            item =>
+                Number(item.id) ===
+                Number(productId)
+        );
+
+
+    if (!product) {
+
+        return;
+
+    }
+
+
+    const name =
+        product.product_name ||
+        `Product #${productId}`;
+
+
+    const confirmed =
+        confirm(
+            `Delete "${name}"?\n\n` +
+            `This action cannot be undone.`
+        );
+
+
+    if (!confirmed) {
+
+        return;
+
+    }
+
+
+    try {
+
+        await apiDelete(
+            `/products/${productId}`
+        );
+
+
+        alert(
+            "Product deleted successfully."
+        );
+
+
+        await renderProducts();
+
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+
+        alert(
+            "Unable to delete product:\n\n" +
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   SIMPLE TABLE PAGES
 ========================================================= */
 
 async function renderSimpleTable(
@@ -2687,11 +3418,9 @@ async function renderSimpleTable(
 
 
     content.innerHTML = `
-
         <div class="loading">
             Loading ${escapeHtml(title)}...
         </div>
-
     `;
 
 
@@ -2724,17 +3453,11 @@ async function renderSimpleTable(
                                 📋
                             </div>
 
-
                             <h3>
-
-                                No
-                                ${escapeHtml(
+                                No ${escapeHtml(
                                     title.toLowerCase()
-                                )}
-                                found
-
+                                )} found
                             </h3>
-
 
                             <p>
                                 Records will appear here
@@ -2764,12 +3487,9 @@ async function renderSimpleTable(
 
             <div class="panel">
 
-
                 <div class="table-wrapper">
 
-
                     <table>
-
 
                         <thead>
 
@@ -2779,87 +3499,67 @@ async function renderSimpleTable(
                                     .map(
                                         column =>
                                             `
-
-                                            <th>
-
-                                                ${escapeHtml(
-                                                    column
-                                                )}
-
-                                            </th>
-
+                                                <th>
+                                                    ${escapeHtml(
+                                                        column
+                                                    )}
+                                                </th>
                                             `
                                     )
-                                    .join(
-                                        ""
-                                    )}
+                                    .join("")}
 
                             </tr>
 
                         </thead>
 
 
-
                         <tbody>
 
                             ${data
-                                .slice(
-                                    0,
-                                    100
-                                )
+                                .slice(0, 100)
                                 .map(
                                     row =>
                                         `
+                                            <tr>
 
-                                        <tr>
+                                                ${columns
+                                                    .map(
+                                                        column =>
+                                                            `
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        row[
+                                                                            column
+                                                                        ] ??
+                                                                        "-"
+                                                                    )}
+                                                                </td>
+                                                            `
+                                                    )
+                                                    .join("")}
 
-                                            ${columns
-                                                .map(
-                                                    column =>
-                                                        `
-
-                                                        <td>
-
-                                                            ${escapeHtml(
-                                                                row[
-                                                                    column
-                                                                ] ??
-                                                                    "-"
-                                                            )}
-
-                                                        </td>
-
-                                                        `
-                                                )
-                                                .join(
-                                                    ""
-                                                )}
-
-                                        </tr>
-
+                                            </tr>
                                         `
                                 )
-                                .join(
-                                    ""
-                                )}
+                                .join("")}
 
                         </tbody>
 
-
                     </table>
 
-
                 </div>
-
 
             </div>
 
         `;
 
 
-    } catch (
-        error
-    ) {
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
 
         content.innerHTML = `
 
@@ -2890,7 +3590,7 @@ async function renderSimpleTable(
 
 
 /* =========================================================
-   SHOW PAGE
+   PAGE ROUTING
 ========================================================= */
 
 function showPage(
@@ -2911,7 +3611,7 @@ function showPage(
                 item.classList.toggle(
                     "active",
                     item.dataset.page ===
-                        page
+                    page
                 );
 
             }
@@ -2926,7 +3626,6 @@ function showPage(
     switch (
         page
     ) {
-
 
         case "dashboard":
 
@@ -3011,7 +3710,7 @@ function showPage(
 
 
 /* =========================================================
-   NAVIGATION BUTTONS
+   NAVIGATION
 ========================================================= */
 
 document
