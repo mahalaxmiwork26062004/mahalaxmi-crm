@@ -3,680 +3,1623 @@ const API = "/api";
 let currentPage = "dashboard";
 let customersCache = [];
 
-
 /* =========================================================
-   API
+API
 ========================================================= */
 
 async function apiRequest(endpoint, options = {}) {
 
-    const response = await fetch(`${API}${endpoint}`, {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            ...(options.headers || {})
-        }
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || result.success === false) {
-        throw new Error(
-            result.error ||
-            result.message ||
-            `Request failed (${response.status})`
-        );
+const response = await fetch(`${API}${endpoint}`, {
+    ...options,
+    headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
     }
+});
 
-    return result;
+const result = await response.json();
+
+if (!response.ok || result.success === false) {
+    throw new Error(
+        result.error ||
+        result.message ||
+        `Request failed (${response.status})`
+    );
 }
 
+return result;
+
+}
 
 async function apiGet(endpoint) {
-    return apiRequest(endpoint);
+return apiRequest(endpoint);
 }
-
 
 async function apiPost(endpoint, data) {
-    return apiRequest(endpoint, {
-        method: "POST",
-        body: JSON.stringify(data)
-    });
+return apiRequest(endpoint, {
+method: "POST",
+body: JSON.stringify(data)
+});
 }
-
 
 async function apiPut(endpoint, data) {
-    return apiRequest(endpoint, {
-        method: "PUT",
-        body: JSON.stringify(data)
-    });
+return apiRequest(endpoint, {
+method: "PUT",
+body: JSON.stringify(data)
+});
 }
-
 
 async function apiDelete(endpoint) {
-    return apiRequest(endpoint, {
-        method: "DELETE"
-    });
+return apiRequest(endpoint, {
+method: "DELETE"
+});
 }
 
-
 /* =========================================================
-   PAGE INFORMATION
+PAGE INFORMATION
 ========================================================= */
 
 const PAGE_INFO = {
 
-    dashboard: {
-        title: "Dashboard",
-        subtitle: "Overview of your business activity"
-    },
+dashboard: {
+    title: "Dashboard",
+    subtitle: "Overview of your business activity"
+},
 
-    customers: {
-        title: "Customers",
-        subtitle: "Manage your customers and contacts"
-    },
+customers: {
+    title: "Customers",
+    subtitle: "Manage your customers and contacts"
+},
 
-    enquiries: {
-        title: "Enquiries",
-        subtitle: "Track customer enquiries and leads"
-    },
+enquiries: {
+    title: "Enquiries",
+    subtitle: "Track customer enquiries and leads"
+},
 
-    products: {
-        title: "Products",
-        subtitle: "Products, pricing and stock"
-    },
+products: {
+    title: "Products",
+    subtitle: "Products, pricing and stock"
+},
 
-    quotations: {
-        title: "Quotations",
-        subtitle: "Manage quotations and proposals"
-    },
+quotations: {
+    title: "Quotations",
+    subtitle: "Manage quotations and proposals"
+},
 
-    orders: {
-        title: "Orders",
-        subtitle: "Manage sales orders"
-    },
+orders: {
+    title: "Orders",
+    subtitle: "Manage sales orders"
+},
 
-    followups: {
-        title: "Follow-ups",
-        subtitle: "Today's customer follow-ups"
-    },
+followups: {
+    title: "Follow-ups",
+    subtitle: "Today's customer follow-ups"
+},
 
-    payments: {
-        title: "Payments",
-        subtitle: "Track customer payments"
-    }
+payments: {
+    title: "Payments",
+    subtitle: "Track customer payments"
+}
 
 };
 
-
 /* =========================================================
-   DASHBOARD
+DASHBOARD
 ========================================================= */
 
 async function renderDashboard() {
 
-    const content =
-        document.getElementById("content");
+const content =
+    document.getElementById("content");
+
+content.innerHTML = `
+    <div class="loading">
+        Loading dashboard...
+    </div>
+`;
+
+try {
+
+    const [
+        customers,
+        products,
+        enquiries,
+        quotations,
+        orders,
+        followups
+    ] = await Promise.all([
+
+        apiGet("/customers"),
+        apiGet("/products"),
+        apiGet("/enquiries"),
+        apiGet("/quotations"),
+        apiGet("/orders"),
+        apiGet("/followups")
+
+    ]);
+
+    const customerCount =
+        customers.count || 0;
+
+    const productCount =
+        products.count || 0;
+
+    const enquiryCount =
+        enquiries.count || 0;
+
+    const quotationCount =
+        quotations.count || 0;
+
+    const orderCount =
+        orders.count || 0;
+
+    const followupCount =
+        followups.count || 0;
+
+    const enquiryData =
+        enquiries.data || [];
+
+    const quotationData =
+        quotations.data || [];
+
+    const quotationValue =
+        quotationData.reduce(
+            (sum, q) =>
+                sum + Number(q.grand_total || 0),
+            0
+        );
+
 
     content.innerHTML = `
-        <div class="loading">
-            Loading dashboard...
+
+        <div class="stats">
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    Customers
+                </div>
+
+                <div class="stat-value">
+                    ${customerCount}
+                </div>
+
+                <div class="stat-footer">
+                    Total customers
+                </div>
+            </div>
+
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    Products
+                </div>
+
+                <div class="stat-value">
+                    ${productCount}
+                </div>
+
+                <div class="stat-footer">
+                    Product catalogue
+                </div>
+            </div>
+
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    Enquiries
+                </div>
+
+                <div class="stat-value">
+                    ${enquiryCount}
+                </div>
+
+                <div class="stat-footer">
+                    Customer enquiries
+                </div>
+            </div>
+
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    Quotations
+                </div>
+
+                <div class="stat-value">
+                    ${quotationCount}
+                </div>
+
+                <div class="stat-footer">
+                    Total quotations
+                </div>
+            </div>
+
         </div>
-    `;
 
-    try {
 
-        const [
-            customers,
-            products,
-            enquiries,
-            quotations,
-            orders,
-            followups
-        ] = await Promise.all([
+        <div class="grid-2">
 
-            apiGet("/customers"),
-            apiGet("/products"),
-            apiGet("/enquiries"),
-            apiGet("/quotations"),
-            apiGet("/orders"),
-            apiGet("/followups")
-
-        ]);
-
-        const customerCount =
-            customers.count || 0;
-
-        const productCount =
-            products.count || 0;
-
-        const enquiryCount =
-            enquiries.count || 0;
-
-        const quotationCount =
-            quotations.count || 0;
-
-        const orderCount =
-            orders.count || 0;
-
-        const followupCount =
-            followups.count || 0;
-
-        const enquiryData =
-            enquiries.data || [];
-
-        const quotationData =
-            quotations.data || [];
-
-        const quotationValue =
-            quotationData.reduce(
-                (sum, q) =>
-                    sum + Number(q.grand_total || 0),
-                0
-            );
-
-
-        content.innerHTML = `
-
-            <div class="stats">
-
-                <div class="stat-card">
-                    <div class="stat-label">
-                        Customers
-                    </div>
-
-                    <div class="stat-value">
-                        ${customerCount}
-                    </div>
-
-                    <div class="stat-footer">
-                        Total customers
-                    </div>
-                </div>
-
-
-                <div class="stat-card">
-                    <div class="stat-label">
-                        Products
-                    </div>
-
-                    <div class="stat-value">
-                        ${productCount}
-                    </div>
-
-                    <div class="stat-footer">
-                        Product catalogue
-                    </div>
-                </div>
-
-
-                <div class="stat-card">
-                    <div class="stat-label">
-                        Enquiries
-                    </div>
-
-                    <div class="stat-value">
-                        ${enquiryCount}
-                    </div>
-
-                    <div class="stat-footer">
-                        Customer enquiries
-                    </div>
-                </div>
-
-
-                <div class="stat-card">
-                    <div class="stat-label">
-                        Quotations
-                    </div>
-
-                    <div class="stat-value">
-                        ${quotationCount}
-                    </div>
-
-                    <div class="stat-footer">
-                        Total quotations
-                    </div>
-                </div>
-
-            </div>
-
-
-            <div class="grid-2">
-
-                <div class="panel">
-
-                    <div class="panel-header">
-
-                        <h2>
-                            Recent Enquiries
-                        </h2>
-
-                        <button
-                            id="dashboardEnquiriesButton"
-                        >
-                            View all
-                        </button>
-
-                    </div>
-
-                    <div class="panel-body">
-
-                        ${
-                            enquiryData.length === 0
-
-                                ? `
-                                    <div class="empty">
-                                        <div class="empty-icon">
-                                            📩
-                                        </div>
-                                        No enquiries yet
-                                    </div>
-                                `
-
-                                : `
-                                    <div class="table-wrapper">
-
-                                        <table>
-
-                                            <thead>
-
-                                                <tr>
-                                                    <th>ID</th>
-                                                    <th>Subject</th>
-                                                    <th>Source</th>
-                                                    <th>Status</th>
-                                                </tr>
-
-                                            </thead>
-
-                                            <tbody>
-
-                                                ${enquiryData
-                                                    .slice(0, 5)
-                                                    .map(enquiry => `
-
-                                                        <tr>
-
-                                                            <td>
-                                                                #${enquiry.id}
-                                                            </td>
-
-                                                            <td>
-                                                                ${escapeHtml(
-                                                                    enquiry.subject || "-"
-                                                                )}
-                                                            </td>
-
-                                                            <td>
-                                                                ${escapeHtml(
-                                                                    enquiry.source || "-"
-                                                                )}
-                                                            </td>
-
-                                                            <td>
-
-                                                                <span class="badge badge-new">
-
-                                                                    ${escapeHtml(
-                                                                        enquiry.status || "New"
-                                                                    )}
-
-                                                                </span>
-
-                                                            </td>
-
-                                                        </tr>
-
-                                                    `)
-                                                    .join("")}
-
-                                            </tbody>
-
-                                        </table>
-
-                                    </div>
-                                `
-                        }
-
-                    </div>
-
-                </div>
-
-
-                <div class="panel">
-
-                    <div class="panel-header">
-
-                        <h2>
-                            Recent Quotations
-                        </h2>
-
-                        <button
-                            id="dashboardQuotationsButton"
-                        >
-                            View all
-                        </button>
-
-                    </div>
-
-                    <div class="panel-body">
-
-                        ${
-                            quotationData.length === 0
-
-                                ? `
-                                    <div class="empty">
-                                        <div class="empty-icon">
-                                            💰
-                                        </div>
-                                        No quotations yet
-                                    </div>
-                                `
-
-                                : `
-                                    <div class="table-wrapper">
-
-                                        <table>
-
-                                            <thead>
-
-                                                <tr>
-                                                    <th>Quote</th>
-                                                    <th>Status</th>
-                                                    <th>Total</th>
-                                                </tr>
-
-                                            </thead>
-
-                                            <tbody>
-
-                                                ${quotationData
-                                                    .slice(0, 5)
-                                                    .map(quote => `
-
-                                                        <tr>
-
-                                                            <td>
-                                                                ${escapeHtml(
-                                                                    quote.quotation_number || "-"
-                                                                )}
-                                                            </td>
-
-                                                            <td>
-
-                                                                <span class="badge badge-draft">
-
-                                                                    ${escapeHtml(
-                                                                        quote.status || "Draft"
-                                                                    )}
-
-                                                                </span>
-
-                                                            </td>
-
-                                                            <td>
-                                                                ${formatCurrency(
-                                                                    quote.grand_total
-                                                                )}
-                                                            </td>
-
-                                                        </tr>
-
-                                                    `)
-                                                    .join("")}
-
-                                            </tbody>
-
-                                        </table>
-
-                                    </div>
-                                `
-                        }
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <div
-                class="panel"
-                style="margin-top:20px;"
-            >
+            <div class="panel">
 
                 <div class="panel-header">
 
                     <h2>
-                        Quick Overview
+                        Recent Enquiries
                     </h2>
 
+                    <button
+                        id="dashboardEnquiriesButton"
+                    >
+                        View all
+                    </button>
+
                 </div>
 
                 <div class="panel-body">
 
-                    <div class="stats">
+                    ${
+                        enquiryData.length === 0
 
-                        <div class="stat-card">
+                            ? `
+                                <div class="empty">
+                                    <div class="empty-icon">
+                                        📩
+                                    </div>
+                                    No enquiries yet
+                                </div>
+                            `
 
-                            <div class="stat-label">
-                                Orders
-                            </div>
+                            : `
+                                <div class="table-wrapper">
 
-                            <div class="stat-value">
-                                ${orderCount}
-                            </div>
+                                    <table>
 
-                        </div>
+                                        <thead>
 
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Subject</th>
+                                                <th>Source</th>
+                                                <th>Status</th>
+                                            </tr>
 
-                        <div class="stat-card">
+                                        </thead>
 
-                            <div class="stat-label">
-                                Follow-ups
-                            </div>
+                                        <tbody>
 
-                            <div class="stat-value">
-                                ${followupCount}
-                            </div>
+                                            ${enquiryData
+                                                .slice(0, 5)
+                                                .map(enquiry => `
 
-                        </div>
+                                                    <tr>
 
+                                                        <td>
+                                                            #${enquiry.id}
+                                                        </td>
 
-                        <div class="stat-card">
+                                                        <td>
+                                                            ${escapeHtml(
+                                                                enquiry.subject || "-"
+                                                            )}
+                                                        </td>
 
-                            <div class="stat-label">
-                                Quotation Value
-                            </div>
+                                                        <td>
+                                                            ${escapeHtml(
+                                                                enquiry.source || "-"
+                                                            )}
+                                                        </td>
 
-                            <div class="stat-value">
-                                ${formatCurrency(
-                                    quotationValue
-                                )}
-                            </div>
+                                                        <td>
 
-                        </div>
+                                                            <span class="badge badge-new">
 
-                    </div>
+                                                                ${escapeHtml(
+                                                                    enquiry.status || "New"
+                                                                )}
+
+                                                            </span>
+
+                                                        </td>
+
+                                                    </tr>
+
+                                                `)
+                                                .join("")}
+
+                                        </tbody>
+
+                                    </table>
+
+                                </div>
+                            `
+                    }
 
                 </div>
 
             </div>
-        `;
 
 
-        document
-            .getElementById(
-                "dashboardEnquiriesButton"
-            )
-            ?.addEventListener(
-                "click",
-                () => showPage("enquiries")
-            );
-
-
-        document
-            .getElementById(
-                "dashboardQuotationsButton"
-            )
-            ?.addEventListener(
-                "click",
-                () => showPage("quotations")
-            );
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        content.innerHTML = `
             <div class="panel">
+
+                <div class="panel-header">
+
+                    <h2>
+                        Recent Quotations
+                    </h2>
+
+                    <button
+                        id="dashboardQuotationsButton"
+                    >
+                        View all
+                    </button>
+
+                </div>
+
                 <div class="panel-body">
 
-                    <div class="empty">
+                    ${
+                        quotationData.length === 0
 
-                        <div class="empty-icon">
-                            ⚠️
+                            ? `
+                                <div class="empty">
+                                    <div class="empty-icon">
+                                        💰
+                                    </div>
+                                    No quotations yet
+                                </div>
+                            `
+
+                            : `
+                                <div class="table-wrapper">
+
+                                    <table>
+
+                                        <thead>
+
+                                            <tr>
+                                                <th>Quote</th>
+                                                <th>Status</th>
+                                                <th>Total</th>
+                                            </tr>
+
+                                        </thead>
+
+                                        <tbody>
+
+                                            ${quotationData
+                                                .slice(0, 5)
+                                                .map(quote => `
+
+                                                    <tr>
+
+                                                        <td>
+                                                            ${escapeHtml(
+                                                                quote.quotation_number || "-"
+                                                            )}
+                                                        </td>
+
+                                                        <td>
+
+                                                            <span class="badge badge-draft">
+
+                                                                ${escapeHtml(
+                                                                    quote.status || "Draft"
+                                                                )}
+
+                                                            </span>
+
+                                                        </td>
+
+                                                        <td>
+                                                            ${formatCurrency(
+                                                                quote.grand_total
+                                                            )}
+                                                        </td>
+
+                                                    </tr>
+
+                                                `)
+                                                .join("")}
+
+                                        </tbody>
+
+                                    </table>
+
+                                </div>
+                            `
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div
+            class="panel"
+            style="margin-top:20px;"
+        >
+
+            <div class="panel-header">
+
+                <h2>
+                    Quick Overview
+                </h2>
+
+            </div>
+
+            <div class="panel-body">
+
+                <div class="stats">
+
+                    <div class="stat-card">
+
+                        <div class="stat-label">
+                            Orders
                         </div>
 
-                        <h3>
-                            Unable to load dashboard
-                        </h3>
+                        <div class="stat-value">
+                            ${orderCount}
+                        </div>
 
-                        <p>
-                            ${escapeHtml(error.message)}
-                        </p>
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-label">
+                            Follow-ups
+                        </div>
+
+                        <div class="stat-value">
+                            ${followupCount}
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-label">
+                            Quotation Value
+                        </div>
+
+                        <div class="stat-value">
+                            ${formatCurrency(
+                                quotationValue
+                            )}
+                        </div>
 
                     </div>
 
                 </div>
+
             </div>
-        `;
-    }
-}
 
-
-/* =========================================================
-   CUSTOMERS
-========================================================= */
-
-async function renderCustomers() {
-
-    const content =
-        document.getElementById("content");
-
-    content.innerHTML = `
-        <div class="loading">
-            Loading customers...
         </div>
     `;
 
 
-    try {
-
-        const result =
-            await apiGet("/customers");
-
-
-        /*
-          IMPORTANT:
-          New server.js returns:
-
-          {
-             count: 1,
-             data: [...]
-          }
-
-          Older server returned:
-
-          {
-             count: 1,
-             customers: [...]
-          }
-
-          Support BOTH.
-        */
-
-        customersCache =
-            result.customers ||
-            result.data ||
-            [];
+    document
+        .getElementById(
+            "dashboardEnquiriesButton"
+        )
+        ?.addEventListener(
+            "click",
+            () => showPage("enquiries")
+        );
 
 
-        renderCustomersTable();
+    document
+        .getElementById(
+            "dashboardQuotationsButton"
+        )
+        ?.addEventListener(
+            "click",
+            () => showPage("quotations")
+        );
 
 
-    } catch (error) {
+} catch (error) {
 
-        console.error(error);
+    console.error(error);
 
-        content.innerHTML = `
-            <div class="panel">
-                <div class="panel-body">
+    content.innerHTML = `
+        <div class="panel">
+            <div class="panel-body">
 
-                    <div class="empty">
+                <div class="empty">
 
-                        <div class="empty-icon">
-                            ⚠️
-                        </div>
-
-                        <h3>
-                            Unable to load customers
-                        </h3>
-
-                        <p>
-                            ${escapeHtml(error.message)}
-                        </p>
-
+                    <div class="empty-icon">
+                        ⚠️
                     </div>
 
+                    <h3>
+                        Unable to load dashboard
+                    </h3>
+
+                    <p>
+                        ${escapeHtml(error.message)}
+                    </p>
+
                 </div>
+
             </div>
-        `;
-    }
+        </div>
+    `;
 }
 
+}
 
 /* =========================================================
-   CUSTOMER TABLE
+CUSTOMERS
+========================================================= */
+
+async function renderCustomers() {
+
+const content =
+    document.getElementById("content");
+
+content.innerHTML = `
+    <div class="loading">
+        Loading customers...
+    </div>
+`;
+
+
+try {
+
+    const result =
+        await apiGet("/customers");
+
+
+    /*
+      IMPORTANT:
+      New server.js returns:
+
+      {
+         count: 1,
+         data: [...]
+      }
+
+      Older server returned:
+
+      {
+         count: 1,
+         customers: [...]
+      }
+
+      Support BOTH.
+    */
+
+    customersCache =
+        result.customers ||
+        result.data ||
+        [];
+
+
+    renderCustomersTable();
+
+
+} catch (error) {
+
+    console.error(error);
+
+    content.innerHTML = `
+        <div class="panel">
+            <div class="panel-body">
+
+                <div class="empty">
+
+                    <div class="empty-icon">
+                        ⚠️
+                    </div>
+
+                    <h3>
+                        Unable to load customers
+                    </h3>
+
+                    <p>
+                        ${escapeHtml(error.message)}
+                    </p>
+
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+}
+
+/* =========================================================
+CUSTOMER TABLE
 ========================================================= */
 
 function renderCustomersTable(searchText = "") {
 
-    const content =
-        document.getElementById("content");
+const content =
+    document.getElementById("content");
 
-    const search =
-        String(searchText)
-            .trim()
+const search =
+    String(searchText)
+        .trim()
+        .toLowerCase();
+
+
+const filtered =
+    customersCache.filter(customer => {
+
+        const searchable = [
+
+            customer.company_name,
+            customer.contact_person,
+            customer.mobile,
+            customer.whatsapp,
+            customer.email,
+            customer.city,
+            customer.state,
+            customer.gst_number,
+            customer.customer_type
+
+        ]
+            .filter(Boolean)
+            .join(" ")
             .toLowerCase();
 
 
-    const filtered =
-        customersCache.filter(customer => {
+        return searchable.includes(search);
 
-            const searchable = [
-
-                customer.company_name,
-                customer.contact_person,
-                customer.mobile,
-                customer.whatsapp,
-                customer.email,
-                customer.city,
-                customer.state,
-                customer.gst_number,
-                customer.customer_type
-
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
+    });
 
 
-            return searchable.includes(search);
+content.innerHTML = `
 
-        });
+    <div class="page-toolbar">
+
+        <input
+            id="customerSearch"
+            class="search-box"
+            placeholder="Search customers..."
+            value="${escapeHtml(searchText)}"
+        >
+
+
+        <button
+            id="addCustomerButton"
+            class="primary-button"
+            type="button"
+        >
+            + Add Customer
+        </button>
+
+    </div>
+
+
+    <div class="panel">
+
+        <div class="panel-header">
+
+            <h2>
+
+                Customers
+
+                <span
+                    style="
+                        color:#6b7280;
+                        font-size:12px;
+                    "
+                >
+                    (${filtered.length})
+                </span>
+
+            </h2>
+
+        </div>
+
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Company
+                        </th>
+
+                        <th>
+                            Contact
+                        </th>
+
+                        <th>
+                            Mobile
+                        </th>
+
+                        <th>
+                            City
+                        </th>
+
+                        <th>
+                            GST
+                        </th>
+
+                        <th>
+                            Type
+                        </th>
+
+                        <th>
+                            Action
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    ${
+                        filtered.length === 0
+
+                            ? `
+
+                                <tr>
+
+                                    <td colspan="7">
+
+                                        <div class="empty">
+
+                                            <div class="empty-icon">
+                                                👥
+                                            </div>
+
+                                            ${
+                                                customersCache.length === 0
+                                                    ? "No customers yet"
+                                                    : "No customers match your search"
+                                            }
+
+                                        </div>
+
+                                    </td>
+
+                                </tr>
+
+                            `
+
+                            : filtered
+                                .map(customer => `
+
+                                    <tr>
+
+                                        <td>
+
+                                            <strong>
+                                                ${escapeHtml(
+                                                    customer.company_name || "-"
+                                                )}
+                                            </strong>
+
+                                        </td>
+
+
+                                        <td>
+                                            ${escapeHtml(
+                                                customer.contact_person || "-"
+                                            )}
+                                        </td>
+
+
+                                        <td>
+                                            ${escapeHtml(
+                                                customer.mobile || "-"
+                                            )}
+                                        </td>
+
+
+                                        <td>
+                                            ${escapeHtml(
+                                                customer.city || "-"
+                                            )}
+                                        </td>
+
+
+                                        <td>
+                                            ${escapeHtml(
+                                                customer.gst_number || "-"
+                                            )}
+                                        </td>
+
+
+                                        <td>
+                                            ${escapeHtml(
+                                                customer.customer_type || "-"
+                                            )}
+                                        </td>
+
+
+                                        <td>
+
+                                            <div
+                                                style="
+                                                    display:flex;
+                                                    gap:6px;
+                                                "
+                                            >
+
+                                                <button
+                                                    type="button"
+                                                    class="small-action edit-customer"
+                                                    data-id="${customer.id}"
+                                                >
+                                                    Edit
+                                                </button>
+
+
+                                                <button
+                                                    type="button"
+                                                    class="small-action danger delete-customer"
+                                                    data-id="${customer.id}"
+                                                >
+                                                    Delete
+                                                </button>
+
+                                            </div>
+
+                                        </td>
+
+                                    </tr>
+
+                                `)
+                                .join("")
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <div id="customerModal"></div>
+`;
+
+
+addModalStylesIfNeeded();
+
+
+/* SEARCH */
+
+document
+    .getElementById("customerSearch")
+    ?.addEventListener(
+        "input",
+        event => {
+            renderCustomersTable(
+                event.target.value
+            );
+        }
+    );
+
+
+/* ADD */
+
+document
+    .getElementById("addCustomerButton")
+    ?.addEventListener(
+        "click",
+        event => {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            openCustomerModal();
+
+        }
+    );
+
+
+/* EDIT */
+
+document
+    .querySelectorAll(
+        ".edit-customer"
+    )
+    .forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                openCustomerModal(
+                    Number(button.dataset.id)
+                );
+
+            }
+        );
+
+    });
+
+
+/* DELETE */
+
+document
+    .querySelectorAll(
+        ".delete-customer"
+    )
+    .forEach(button => {
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                deleteCustomer(
+                    Number(button.dataset.id)
+                );
+
+            }
+        );
+
+    });
+
+}
+
+/* =========================================================
+CUSTOMER MODAL
+========================================================= */
+
+function openCustomerModal(customerId = null) {
+
+const container =
+    document.getElementById(
+        "customerModal"
+    );
+
+
+if (!container) {
+
+    alert(
+        "Customer form could not be opened."
+    );
+
+    console.error(
+        "customerModal element not found"
+    );
+
+    return;
+}
+
+
+const customer =
+    customerId
+        ? customersCache.find(
+            item =>
+                Number(item.id) ===
+                Number(customerId)
+        )
+        : null;
+
+
+container.innerHTML = `
+
+    <div
+        class="modal-backdrop"
+        id="customerModalBackdrop"
+    >
+
+        <div
+            class="modal"
+            onclick="event.stopPropagation()"
+        >
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h2>
+                        ${
+                            customer
+                                ? "Edit Customer"
+                                : "Add Customer"
+                        }
+                    </h2>
+
+                    <p>
+                        Enter customer information
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="modal-close"
+                    id="closeCustomerModalButton"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form
+                id="customerForm"
+            >
+
+                <div class="form-grid">
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Company Name *
+                        </label>
+
+                        <input
+                            name="company_name"
+                            required
+                            value="${escapeHtml(
+                                customer?.company_name || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Contact Person
+                        </label>
+
+                        <input
+                            name="contact_person"
+                            value="${escapeHtml(
+                                customer?.contact_person || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Mobile
+                        </label>
+
+                        <input
+                            name="mobile"
+                            value="${escapeHtml(
+                                customer?.mobile || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            WhatsApp
+                        </label>
+
+                        <input
+                            name="whatsapp"
+                            value="${escapeHtml(
+                                customer?.whatsapp || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            name="email"
+                            value="${escapeHtml(
+                                customer?.email || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            GST Number
+                        </label>
+
+                        <input
+                            name="gst_number"
+                            value="${escapeHtml(
+                                customer?.gst_number || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field full">
+
+                        <label>
+                            Address
+                        </label>
+
+                        <textarea
+                            name="address"
+                            rows="2"
+                        >${escapeHtml(
+                            customer?.address || ""
+                        )}</textarea>
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            City
+                        </label>
+
+                        <input
+                            name="city"
+                            value="${escapeHtml(
+                                customer?.city || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            State
+                        </label>
+
+                        <input
+                            name="state"
+                            value="${escapeHtml(
+                                customer?.state || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Pincode
+                        </label>
+
+                        <input
+                            name="pincode"
+                            value="${escapeHtml(
+                                customer?.pincode || ""
+                            )}"
+                        >
+
+                    </div>
+
+
+                    <div class="form-field">
+
+                        <label>
+                            Customer Type
+                        </label>
+
+                        <select
+                            name="customer_type"
+                        >
+
+                            <option value="">
+                                Select type
+                            </option>
+
+                            <option
+                                value="Industrial"
+                                ${
+                                    customer?.customer_type === "Industrial"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Industrial
+                            </option>
+
+                            <option
+                                value="OEM"
+                                ${
+                                    customer?.customer_type === "OEM"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                OEM
+                            </option>
+
+                            <option
+                                value="Dealer"
+                                ${
+                                    customer?.customer_type === "Dealer"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Dealer
+                            </option>
+
+                            <option
+                                value="Trader"
+                                ${
+                                    customer?.customer_type === "Trader"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Trader
+                            </option>
+
+                            <option
+                                value="Project"
+                                ${
+                                    customer?.customer_type === "Project"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Project
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="form-field full">
+
+                        <label>
+                            Notes
+                        </label>
+
+                        <textarea
+                            name="notes"
+                            rows="3"
+                        >${escapeHtml(
+                            customer?.notes || ""
+                        )}</textarea>
+
+                    </div>
+
+                </div>
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        id="cancelCustomerButton"
+                    >
+                        Cancel
+                    </button>
+
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                        id="saveCustomerButton"
+                    >
+                        ${
+                            customer
+                                ? "Update Customer"
+                                : "Save Customer"
+                        }
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+`;
+
+
+document
+    .getElementById(
+        "closeCustomerModalButton"
+    )
+    ?.addEventListener(
+        "click",
+        closeCustomerModal
+    );
+
+
+document
+    .getElementById(
+        "cancelCustomerButton"
+    )
+    ?.addEventListener(
+        "click",
+        closeCustomerModal
+    );
+
+
+document
+    .getElementById(
+        "customerModalBackdrop"
+    )
+    ?.addEventListener(
+        "click",
+        event => {
+
+            if (
+                event.target.id ===
+                "customerModalBackdrop"
+            ) {
+                closeCustomerModal();
+            }
+
+        }
+    );
+
+
+document
+    .getElementById("customerForm")
+    ?.addEventListener(
+        "submit",
+        event => {
+
+            saveCustomer(
+                event,
+                customerId
+            );
+
+        }
+    );
+
+
+setTimeout(() => {
+
+    document
+        .querySelector(
+            '#customerForm input[name="company_name"]'
+        )
+        ?.focus();
+
+}, 50);
+
+}
+
+function closeCustomerModal() {
+
+const container =
+    document.getElementById(
+        "customerModal"
+    );
+
+if (container) {
+    container.innerHTML = "";
+}
+
+}
+
+/* =========================================================
+SAVE CUSTOMER
+========================================================= */
+
+async function saveCustomer(
+event,
+customerId
+) {
+
+event.preventDefault();
+
+
+const form =
+    event.target;
+
+
+const formData =
+    new FormData(form);
+
+
+const data = {};
+
+
+formData.forEach(
+    (value, key) => {
+
+        const trimmed =
+            String(value).trim();
+
+        if (trimmed !== "") {
+            data[key] = trimmed;
+        }
+
+    }
+);
+
+
+if (!data.company_name) {
+
+    alert(
+        "Company name is required."
+    );
+
+    return;
+}
+
+
+const button =
+    document.getElementById(
+        "saveCustomerButton"
+    );
+
+
+button.disabled = true;
+
+button.textContent =
+    customerId
+        ? "Updating..."
+        : "Saving...";
+
+
+try {
+
+    if (customerId) {
+
+        await apiPut(
+            `/customers/${customerId}`,
+            data
+        );
+
+        alert(
+            "Customer updated successfully."
+        );
+
+    } else {
+
+        await apiPost(
+            "/customers",
+            data
+        );
+
+        alert(
+            "Customer created successfully."
+        );
+
+    }
+
+
+    closeCustomerModal();
+
+    await renderCustomers();
+
+} catch (error) {
+
+    console.error(error);
+
+    alert(
+        "Unable to save customer:\n\n" +
+        error.message
+    );
+
+
+    button.disabled = false;
+
+    button.textContent =
+        customerId
+            ? "Update Customer"
+            : "Save Customer";
+}
+
+}
+
+/* =========================================================
+DELETE CUSTOMER
+========================================================= */
+
+async function deleteCustomer(
+customerId
+) {
+
+const customer =
+    customersCache.find(
+        item =>
+            Number(item.id) ===
+            Number(customerId)
+    );
+
+
+if (!customer) {
+    return;
+}
+
+
+const name =
+    customer.company_name ||
+    `Customer #${customerId}`;
+
+
+if (
+    !confirm(
+        `Delete "${name}"?\n\n` +
+        `This action cannot be undone.`
+    )
+) {
+    return;
+}
+
+
+try {
+
+    await apiDelete(
+        `/customers/${customerId}`
+    );
+
+
+    alert(
+        "Customer deleted successfully."
+    );
+
+
+    await renderCustomers();
+
+} catch (error) {
+
+    console.error(error);
+
+    alert(
+        "Unable to delete customer:\n\n" +
+        error.message
+    );
+}
+
+}
+
+/* =========================================================
+PRODUCTS
+========================================================= */
+
+async function renderProducts() {
+
+const content =
+    document.getElementById(
+        "content"
+    );
+
+content.innerHTML = `
+    <div class="loading">
+        Loading products...
+    </div>
+`;
+
+
+try {
+
+    const result =
+        await apiGet("/products");
+
+    const data =
+        result.data || [];
 
 
     content.innerHTML = `
@@ -684,45 +1627,22 @@ function renderCustomersTable(searchText = "") {
         <div class="page-toolbar">
 
             <input
-                id="customerSearch"
                 class="search-box"
-                placeholder="Search customers..."
-                value="${escapeHtml(searchText)}"
+                placeholder="Search products..."
             >
-
 
             <button
-                id="addCustomerButton"
                 class="primary-button"
                 type="button"
+                disabled
             >
-                + Add Customer
+                + Add Product
             </button>
 
         </div>
 
 
         <div class="panel">
-
-            <div class="panel-header">
-
-                <h2>
-
-                    Customers
-
-                    <span
-                        style="
-                            color:#6b7280;
-                            font-size:12px;
-                        "
-                    >
-                        (${filtered.length})
-                    </span>
-
-                </h2>
-
-            </div>
-
 
             <div class="table-wrapper">
 
@@ -733,31 +1653,27 @@ function renderCustomersTable(searchText = "") {
                         <tr>
 
                             <th>
-                                Company
+                                Product
                             </th>
 
                             <th>
-                                Contact
+                                Brand
                             </th>
 
                             <th>
-                                Mobile
+                                Model
                             </th>
 
                             <th>
-                                City
+                                Selling Price
                             </th>
 
                             <th>
-                                GST
+                                Stock
                             </th>
 
                             <th>
-                                Type
-                            </th>
-
-                            <th>
-                                Action
+                                Unit
                             </th>
 
                         </tr>
@@ -768,118 +1684,75 @@ function renderCustomersTable(searchText = "") {
                     <tbody>
 
                         ${
-                            filtered.length === 0
-
+                            data.length === 0
                                 ? `
-
                                     <tr>
 
-                                        <td colspan="7">
+                                        <td colspan="6">
 
                                             <div class="empty">
 
                                                 <div class="empty-icon">
-                                                    👥
+                                                    📦
                                                 </div>
 
-                                                ${
-                                                    customersCache.length === 0
-                                                        ? "No customers yet"
-                                                        : "No customers match your search"
-                                                }
+                                                No products found
 
                                             </div>
 
                                         </td>
 
                                     </tr>
-
                                 `
+                                : data
+                                    .map(
+                                        product => `
 
-                                : filtered
-                                    .map(customer => `
+                                            <tr>
 
-                                        <tr>
+                                                <td>
+                                                    <strong>
+                                                        ${escapeHtml(
+                                                            product.product_name || "-"
+                                                        )}
+                                                    </strong>
+                                                </td>
 
-                                            <td>
-
-                                                <strong>
+                                                <td>
                                                     ${escapeHtml(
-                                                        customer.company_name || "-"
+                                                        product.brand || "-"
                                                     )}
-                                                </strong>
+                                                </td>
 
-                                            </td>
+                                                <td>
+                                                    ${escapeHtml(
+                                                        product.model || "-"
+                                                    )}
+                                                </td>
 
+                                                <td>
+                                                    ${formatCurrency(
+                                                        product.selling_price
+                                                    )}
+                                                </td>
 
-                                            <td>
-                                                ${escapeHtml(
-                                                    customer.contact_person || "-"
-                                                )}
-                                            </td>
+                                                <td>
+                                                    ${
+                                                        product.stock_qty ??
+                                                        0
+                                                    }
+                                                </td>
 
+                                                <td>
+                                                    ${escapeHtml(
+                                                        product.unit || "Nos"
+                                                    )}
+                                                </td>
 
-                                            <td>
-                                                ${escapeHtml(
-                                                    customer.mobile || "-"
-                                                )}
-                                            </td>
+                                            </tr>
 
-
-                                            <td>
-                                                ${escapeHtml(
-                                                    customer.city || "-"
-                                                )}
-                                            </td>
-
-
-                                            <td>
-                                                ${escapeHtml(
-                                                    customer.gst_number || "-"
-                                                )}
-                                            </td>
-
-
-                                            <td>
-                                                ${escapeHtml(
-                                                    customer.customer_type || "-"
-                                                )}
-                                            </td>
-
-
-                                            <td>
-
-                                                <div
-                                                    style="
-                                                        display:flex;
-                                                        gap:6px;
-                                                    "
-                                                >
-
-                                                    <button
-                                                        type="button"
-                                                        class="small-action edit-customer"
-                                                        data-id="${customer.id}"
-                                                    >
-                                                        Edit
-                                                    </button>
-
-
-                                                    <button
-                                                        type="button"
-                                                        class="small-action danger delete-customer"
-                                                        data-id="${customer.id}"
-                                                    >
-                                                        Delete
-                                                    </button>
-
-                                                </div>
-
-                                            </td>
-
-                                        </tr>
-
-                                    `)
+                                        `
+                                    )
                                     .join("")
                         }
 
@@ -890,1397 +1763,517 @@ function renderCustomersTable(searchText = "") {
             </div>
 
         </div>
-
-
-        <div id="customerModal"></div>
     `;
 
-
-    addModalStylesIfNeeded();
-
-
-    /* SEARCH */
-
-    document
-        .getElementById("customerSearch")
-        ?.addEventListener(
-            "input",
-            event => {
-                renderCustomersTable(
-                    event.target.value
-                );
-            }
-        );
-
-
-    /* ADD */
-
-    document
-        .getElementById("addCustomerButton")
-        ?.addEventListener(
-            "click",
-            event => {
-
-                event.preventDefault();
-
-                event.stopPropagation();
-
-                openCustomerModal();
-
-            }
-        );
-
-
-    /* EDIT */
-
-    document
-        .querySelectorAll(
-            ".edit-customer"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    openCustomerModal(
-                        Number(button.dataset.id)
-                    );
-
-                }
-            );
-
-        });
-
-
-    /* DELETE */
-
-    document
-        .querySelectorAll(
-            ".delete-customer"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    deleteCustomer(
-                        Number(button.dataset.id)
-                    );
-
-                }
-            );
-
-        });
-}
-
-
-/* =========================================================
-   CUSTOMER MODAL
-========================================================= */
-
-function openCustomerModal(customerId = null) {
-
-    const container =
-        document.getElementById(
-            "customerModal"
-        );
-
-
-    if (!container) {
-
-        alert(
-            "Customer form could not be opened."
-        );
-
-        console.error(
-            "customerModal element not found"
-        );
-
-        return;
-    }
-
-
-    const customer =
-        customerId
-            ? customersCache.find(
-                item =>
-                    Number(item.id) ===
-                    Number(customerId)
-            )
-            : null;
-
-
-    container.innerHTML = `
-
-        <div
-            class="modal-backdrop"
-            id="customerModalBackdrop"
-        >
-
-            <div
-                class="modal"
-                onclick="event.stopPropagation()"
-            >
-
-                <div class="modal-header">
-
-                    <div>
-
-                        <h2>
-                            ${
-                                customer
-                                    ? "Edit Customer"
-                                    : "Add Customer"
-                            }
-                        </h2>
-
-                        <p>
-                            Enter customer information
-                        </p>
-
-                    </div>
-
-
-                    <button
-                        type="button"
-                        class="modal-close"
-                        id="closeCustomerModalButton"
-                    >
-                        ×
-                    </button>
-
-                </div>
-
-
-                <form
-                    id="customerForm"
-                >
-
-                    <div class="form-grid">
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Company Name *
-                            </label>
-
-                            <input
-                                name="company_name"
-                                required
-                                value="${escapeHtml(
-                                    customer?.company_name || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Contact Person
-                            </label>
-
-                            <input
-                                name="contact_person"
-                                value="${escapeHtml(
-                                    customer?.contact_person || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Mobile
-                            </label>
-
-                            <input
-                                name="mobile"
-                                value="${escapeHtml(
-                                    customer?.mobile || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                WhatsApp
-                            </label>
-
-                            <input
-                                name="whatsapp"
-                                value="${escapeHtml(
-                                    customer?.whatsapp || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Email
-                            </label>
-
-                            <input
-                                type="email"
-                                name="email"
-                                value="${escapeHtml(
-                                    customer?.email || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                GST Number
-                            </label>
-
-                            <input
-                                name="gst_number"
-                                value="${escapeHtml(
-                                    customer?.gst_number || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field full">
-
-                            <label>
-                                Address
-                            </label>
-
-                            <textarea
-                                name="address"
-                                rows="2"
-                            >${escapeHtml(
-                                customer?.address || ""
-                            )}</textarea>
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                City
-                            </label>
-
-                            <input
-                                name="city"
-                                value="${escapeHtml(
-                                    customer?.city || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                State
-                            </label>
-
-                            <input
-                                name="state"
-                                value="${escapeHtml(
-                                    customer?.state || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Pincode
-                            </label>
-
-                            <input
-                                name="pincode"
-                                value="${escapeHtml(
-                                    customer?.pincode || ""
-                                )}"
-                            >
-
-                        </div>
-
-
-                        <div class="form-field">
-
-                            <label>
-                                Customer Type
-                            </label>
-
-                            <select
-                                name="customer_type"
-                            >
-
-                                <option value="">
-                                    Select type
-                                </option>
-
-                                <option
-                                    value="Industrial"
-                                    ${
-                                        customer?.customer_type === "Industrial"
-                                            ? "selected"
-                                            : ""
-                                    }
-                                >
-                                    Industrial
-                                </option>
-
-                                <option
-                                    value="OEM"
-                                    ${
-                                        customer?.customer_type === "OEM"
-                                            ? "selected"
-                                            : ""
-                                    }
-                                >
-                                    OEM
-                                </option>
-
-                                <option
-                                    value="Dealer"
-                                    ${
-                                        customer?.customer_type === "Dealer"
-                                            ? "selected"
-                                            : ""
-                                    }
-                                >
-                                    Dealer
-                                </option>
-
-                                <option
-                                    value="Trader"
-                                    ${
-                                        customer?.customer_type === "Trader"
-                                            ? "selected"
-                                            : ""
-                                    }
-                                >
-                                    Trader
-                                </option>
-
-                                <option
-                                    value="Project"
-                                    ${
-                                        customer?.customer_type === "Project"
-                                            ? "selected"
-                                            : ""
-                                    }
-                                >
-                                    Project
-                                </option>
-
-                            </select>
-
-                        </div>
-
-
-                        <div class="form-field full">
-
-                            <label>
-                                Notes
-                            </label>
-
-                            <textarea
-                                name="notes"
-                                rows="3"
-                            >${escapeHtml(
-                                customer?.notes || ""
-                            )}</textarea>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="modal-footer">
-
-                        <button
-                            type="button"
-                            class="secondary-button"
-                            id="cancelCustomerButton"
-                        >
-                            Cancel
-                        </button>
-
-
-                        <button
-                            type="submit"
-                            class="primary-button"
-                            id="saveCustomerButton"
-                        >
-                            ${
-                                customer
-                                    ? "Update Customer"
-                                    : "Save Customer"
-                            }
-                        </button>
-
-                    </div>
-
-                </form>
-
-            </div>
-
-        </div>
-    `;
-
-
-    document
-        .getElementById(
-            "closeCustomerModalButton"
-        )
-        ?.addEventListener(
-            "click",
-            closeCustomerModal
-        );
-
-
-    document
-        .getElementById(
-            "cancelCustomerButton"
-        )
-        ?.addEventListener(
-            "click",
-            closeCustomerModal
-        );
-
-
-    document
-        .getElementById(
-            "customerModalBackdrop"
-        )
-        ?.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target.id ===
-                    "customerModalBackdrop"
-                ) {
-                    closeCustomerModal();
-                }
-
-            }
-        );
-
-
-    document
-        .getElementById("customerForm")
-        ?.addEventListener(
-            "submit",
-            event => {
-
-                saveCustomer(
-                    event,
-                    customerId
-                );
-
-            }
-        );
-
-
-    setTimeout(() => {
-
-        document
-            .querySelector(
-                '#customerForm input[name="company_name"]'
-            )
-            ?.focus();
-
-    }, 50);
-}
-
-
-function closeCustomerModal() {
-
-    const container =
-        document.getElementById(
-            "customerModal"
-        );
-
-    if (container) {
-        container.innerHTML = "";
-    }
-}
-
-
-/* =========================================================
-   SAVE CUSTOMER
-========================================================= */
-
-async function saveCustomer(
-    event,
-    customerId
-) {
-
-    event.preventDefault();
-
-
-    const form =
-        event.target;
-
-
-    const formData =
-        new FormData(form);
-
-
-    const data = {};
-
-
-    formData.forEach(
-        (value, key) => {
-
-            const trimmed =
-                String(value).trim();
-
-            if (trimmed !== "") {
-                data[key] = trimmed;
-            }
-
-        }
-    );
-
-
-    if (!data.company_name) {
-
-        alert(
-            "Company name is required."
-        );
-
-        return;
-    }
-
-
-    const button =
-        document.getElementById(
-            "saveCustomerButton"
-        );
-
-
-    button.disabled = true;
-
-    button.textContent =
-        customerId
-            ? "Updating..."
-            : "Saving...";
-
-
-    try {
-
-        if (customerId) {
-
-            await apiPut(
-                `/customers/${customerId}`,
-                data
-            );
-
-            alert(
-                "Customer updated successfully."
-            );
-
-        } else {
-
-            await apiPost(
-                "/customers",
-                data
-            );
-
-            alert(
-                "Customer created successfully."
-            );
-
-        }
-
-
-        closeCustomerModal();
-
-        await renderCustomers();
-
-    } catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Unable to save customer:\n\n" +
-            error.message
-        );
-
-
-        button.disabled = false;
-
-        button.textContent =
-            customerId
-                ? "Update Customer"
-                : "Save Customer";
-    }
-}
-
-
-/* =========================================================
-   DELETE CUSTOMER
-========================================================= */
-
-async function deleteCustomer(
-    customerId
-) {
-
-    const customer =
-        customersCache.find(
-            item =>
-                Number(item.id) ===
-                Number(customerId)
-        );
-
-
-    if (!customer) {
-        return;
-    }
-
-
-    const name =
-        customer.company_name ||
-        `Customer #${customerId}`;
-
-
-    if (
-        !confirm(
-            `Delete "${name}"?\n\n` +
-            `This action cannot be undone.`
-        )
-    ) {
-        return;
-    }
-
-
-    try {
-
-        await apiDelete(
-            `/customers/${customerId}`
-        );
-
-
-        alert(
-            "Customer deleted successfully."
-        );
-
-
-        await renderCustomers();
-
-    } catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Unable to delete customer:\n\n" +
-            error.message
-        );
-    }
-}
-
-
-/* =========================================================
-   PRODUCTS
-========================================================= */
-
-async function renderProducts() {
-
-    const content =
-        document.getElementById(
-            "content"
-        );
+} catch (error) {
 
     content.innerHTML = `
-        <div class="loading">
-            Loading products...
+        <div class="panel">
+            <div class="panel-body">
+
+                Unable to load products.
+
+                <br><br>
+
+                ${escapeHtml(error.message)}
+
+            </div>
         </div>
     `;
-
-
-    try {
-
-        const result =
-            await apiGet("/products");
-
-        const data =
-            result.data || [];
-
-
-        content.innerHTML = `
-
-            <div class="page-toolbar">
-
-                <input
-                    class="search-box"
-                    placeholder="Search products..."
-                >
-
-                <button
-                    class="primary-button"
-                    type="button"
-                    disabled
-                >
-                    + Add Product
-                </button>
-
-            </div>
-
-
-            <div class="panel">
-
-                <div class="table-wrapper">
-
-                    <table>
-
-                        <thead>
-
-                            <tr>
-
-                                <th>
-                                    Product
-                                </th>
-
-                                <th>
-                                    Brand
-                                </th>
-
-                                <th>
-                                    Model
-                                </th>
-
-                                <th>
-                                    Selling Price
-                                </th>
-
-                                <th>
-                                    Stock
-                                </th>
-
-                                <th>
-                                    Unit
-                                </th>
-
-                            </tr>
-
-                        </thead>
-
-
-                        <tbody>
-
-                            ${
-                                data.length === 0
-                                    ? `
-                                        <tr>
-
-                                            <td colspan="6">
-
-                                                <div class="empty">
-
-                                                    <div class="empty-icon">
-                                                        📦
-                                                    </div>
-
-                                                    No products found
-
-                                                </div>
-
-                                            </td>
-
-                                        </tr>
-                                    `
-                                    : data
-                                        .map(
-                                            product => `
-
-                                                <tr>
-
-                                                    <td>
-                                                        <strong>
-                                                            ${escapeHtml(
-                                                                product.product_name || "-"
-                                                            )}
-                                                        </strong>
-                                                    </td>
-
-                                                    <td>
-                                                        ${escapeHtml(
-                                                            product.brand || "-"
-                                                        )}
-                                                    </td>
-
-                                                    <td>
-                                                        ${escapeHtml(
-                                                            product.model || "-"
-                                                        )}
-                                                    </td>
-
-                                                    <td>
-                                                        ${formatCurrency(
-                                                            product.selling_price
-                                                        )}
-                                                    </td>
-
-                                                    <td>
-                                                        ${
-                                                            product.stock_qty ??
-                                                            0
-                                                        }
-                                                    </td>
-
-                                                    <td>
-                                                        ${escapeHtml(
-                                                            product.unit || "Nos"
-                                                        )}
-                                                    </td>
-
-                                                </tr>
-
-                                            `
-                                        )
-                                        .join("")
-                            }
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-        `;
-
-    } catch (error) {
-
-        content.innerHTML = `
-            <div class="panel">
-                <div class="panel-body">
-
-                    Unable to load products.
-
-                    <br><br>
-
-                    ${escapeHtml(error.message)}
-
-                </div>
-            </div>
-        `;
-    }
 }
 
+}
 
 /* =========================================================
-   SIMPLE TABLE PAGES
+SIMPLE TABLE PAGES
 ========================================================= */
 
 async function renderSimpleTable(
-    table,
-    title
+table,
+title
 ) {
 
-    const content =
-        document.getElementById(
-            "content"
-        );
+const content =
+    document.getElementById(
+        "content"
+    );
 
-    content.innerHTML = `
-        <div class="loading">
-            Loading ${escapeHtml(title)}...
-        </div>
-    `;
-
-
-    try {
-
-        const result =
-            await apiGet(`/${table}`);
-
-        const data =
-            result.data || [];
+content.innerHTML = `
+    <div class="loading">
+        Loading ${escapeHtml(title)}...
+    </div>
+`;
 
 
-        if (data.length === 0) {
+try {
 
-            content.innerHTML = `
+    const result =
+        await apiGet(`/${table}`);
 
-                <div class="panel">
-
-                    <div class="panel-body">
-
-                        <div class="empty">
-
-                            <div class="empty-icon">
-                                📋
-                            </div>
-
-                            <h3>
-                                No ${escapeHtml(
-                                    title.toLowerCase()
-                                )} found
-                            </h3>
-
-                        </div>
-
-                    </div>
-
-                </div>
-            `;
-
-            return;
-        }
+    const data =
+        result.data || [];
 
 
-        const columns =
-            Object.keys(data[0]);
-
+    if (data.length === 0) {
 
         content.innerHTML = `
 
             <div class="panel">
 
-                <div class="table-wrapper">
+                <div class="panel-body">
 
-                    <table>
+                    <div class="empty">
 
-                        <thead>
+                        <div class="empty-icon">
+                            📋
+                        </div>
 
-                            <tr>
+                        <h3>
+                            No ${escapeHtml(
+                                title.toLowerCase()
+                            )} found
+                        </h3>
 
-                                ${columns
-                                    .map(
-                                        column => `
-                                            <th>
-                                                ${escapeHtml(
-                                                    column
-                                                )}
-                                            </th>
-                                        `
-                                    )
-                                    .join("")}
+                    </div>
 
-                            </tr>
+                </div>
 
-                        </thead>
+            </div>
+        `;
+
+        return;
+    }
 
 
-                        <tbody>
+    const columns =
+        Object.keys(data[0]);
 
-                            ${data
-                                .slice(0, 100)
+
+    content.innerHTML = `
+
+        <div class="panel">
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            ${columns
                                 .map(
-                                    row => `
-
-                                        <tr>
-
-                                            ${columns
-                                                .map(
-                                                    column => `
-                                                        <td>
-                                                            ${escapeHtml(
-                                                                row[column] ??
-                                                                "-"
-                                                            )}
-                                                        </td>
-                                                    `
-                                                )
-                                                .join("")}
-
-                                        </tr>
-
+                                    column => `
+                                        <th>
+                                            ${escapeHtml(
+                                                column
+                                            )}
+                                        </th>
                                     `
                                 )
                                 .join("")}
 
-                        </tbody>
+                        </tr>
 
-                    </table>
+                    </thead>
 
-                </div>
+
+                    <tbody>
+
+                        ${data
+                            .slice(0, 100)
+                            .map(
+                                row => `
+
+                                    <tr>
+
+                                        ${columns
+                                            .map(
+                                                column => `
+                                                    <td>
+                                                        ${escapeHtml(
+                                                            row[column] ??
+                                                            "-"
+                                                        )}
+                                                    </td>
+                                                `
+                                            )
+                                            .join("")}
+
+                                    </tr>
+
+                                `
+                            )
+                            .join("")}
+
+                    </tbody>
+
+                </table>
 
             </div>
-        `;
 
-    } catch (error) {
+        </div>
+    `;
 
-        content.innerHTML = `
-            <div class="panel">
-                <div class="panel-body">
+} catch (error) {
 
-                    Unable to load
-                    ${escapeHtml(title)}.
+    content.innerHTML = `
+        <div class="panel">
+            <div class="panel-body">
 
-                    <br><br>
+                Unable to load
+                ${escapeHtml(title)}.
 
-                    ${escapeHtml(error.message)}
+                <br><br>
 
-                </div>
+                ${escapeHtml(error.message)}
+
             </div>
-        `;
-    }
+        </div>
+    `;
 }
 
+}
 
 /* =========================================================
-   NAVIGATION
+NAVIGATION
 ========================================================= */
 
 function showPage(page) {
 
-    currentPage = page;
+currentPage = page;
 
-
-    document
-        .querySelectorAll(".nav-item")
-        .forEach(item => {
-
-            item.classList.toggle(
-                "active",
-                item.dataset.page === page
-            );
-
-        });
-
-
-    const info =
-        PAGE_INFO[page] ||
-        PAGE_INFO.dashboard;
-
-
-    document.getElementById(
-        "pageTitle"
-    ).textContent =
-        info.title;
-
-
-    document.getElementById(
-        "pageSubtitle"
-    ).textContent =
-        info.subtitle;
-
-
-    switch (page) {
-
-        case "dashboard":
-            renderDashboard();
-            break;
-
-        case "customers":
-            renderCustomers();
-            break;
-
-        case "products":
-            renderProducts();
-            break;
-
-        case "enquiries":
-            renderSimpleTable(
-                "enquiries",
-                "Enquiries"
-            );
-            break;
-
-        case "quotations":
-            renderSimpleTable(
-                "quotations",
-                "Quotations"
-            );
-            break;
-
-        case "orders":
-            renderSimpleTable(
-                "orders",
-                "Orders"
-            );
-            break;
-
-        case "followups":
-            renderSimpleTable(
-                "followups",
-                "Follow-ups"
-            );
-            break;
-
-        case "payments":
-            renderSimpleTable(
-                "payments",
-                "Payments"
-            );
-            break;
-
-        default:
-            renderDashboard();
-    }
-}
-
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function escapeHtml(value) {
-
-    if (
-        value === null ||
-        value === undefined
-    ) {
-        return "";
-    }
-
-    return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-
-function formatCurrency(value) {
-
-    const number =
-        Number(value || 0);
-
-
-    return number.toLocaleString(
-        "en-IN",
-        {
-            style: "currency",
-            currency: "INR",
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }
-    );
-}
-
-
-/* =========================================================
-   MODAL STYLES
-========================================================= */
-
-function addModalStylesIfNeeded() {
-
-    if (
-        document.getElementById(
-            "customer-modal-styles"
-        )
-    ) {
-        return;
-    }
-
-
-    const style =
-        document.createElement("style");
-
-
-    style.id =
-        "customer-modal-styles";
-
-
-    style.textContent = `
-
-        .small-action {
-            border: 1px solid #d1d5db;
-            background: #fff;
-            color: #374151;
-            padding: 6px 9px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-
-        .small-action:hover {
-            background: #f3f4f6;
-        }
-
-        .small-action.danger {
-            color: #b91c1c;
-            border-color: #fecaca;
-        }
-
-        .small-action.danger:hover {
-            background: #fef2f2;
-        }
-
-        .modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(15,23,42,.55);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            z-index: 9999;
-        }
-
-        .modal {
-            width: min(850px, 100%);
-            max-height: 90vh;
-            overflow-y: auto;
-            background: #fff;
-            border-radius: 14px;
-            box-shadow: 0 25px 70px rgba(0,0,0,.20);
-        }
-
-        .modal-header {
-            padding: 22px 24px;
-            border-bottom: 1px solid #e5e7eb;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            font-size: 20px;
-        }
-
-        .modal-header p {
-            margin-top: 5px;
-            color: #6b7280;
-            font-size: 12px;
-        }
-
-        .modal-close {
-            width: 36px;
-            height: 36px;
-            border: none;
-            background: #f3f4f6;
-            border-radius: 8px;
-            font-size: 22px;
-            cursor: pointer;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            padding: 24px;
-        }
-
-        .form-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .form-field.full {
-            grid-column: 1 / -1;
-        }
-
-        .form-field label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #374151;
-        }
-
-        .form-field input,
-        .form-field textarea,
-        .form-field select {
-            width: 100%;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            padding: 10px 11px;
-            outline: none;
-            background: #fff;
-            font: inherit;
-        }
-
-        .form-field input:focus,
-        .form-field textarea:focus,
-        .form-field select:focus {
-            border-color: #2563eb;
-            box-shadow:
-                0 0 0 3px
-                rgba(37,99,235,.10);
-        }
-
-        .modal-footer {
-            padding: 18px 24px;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .secondary-button {
-            border: 1px solid #d1d5db;
-            background: #fff;
-            color: #374151;
-            border-radius: 8px;
-            padding: 10px 15px;
-            cursor: pointer;
-        }
-
-        .secondary-button:hover {
-            background: #f3f4f6;
-        }
-
-        @media (max-width: 700px) {
-
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-field.full {
-                grid-column: auto;
-            }
-
-            .modal-footer {
-                flex-direction: column-reverse;
-            }
-
-            .modal-footer button {
-                width: 100%;
-            }
-        }
-    `;
-
-
-    document.head.appendChild(style);
-}
-
-
-/* =========================================================
-   INITIAL NAVIGATION
-========================================================= */
 
 document
     .querySelectorAll(".nav-item")
-    .forEach(button => {
+    .forEach(item => {
 
-        button.addEventListener(
-            "click",
-            () => {
-
-                showPage(
-                    button.dataset.page
-                );
-
-            }
+        item.classList.toggle(
+            "active",
+            item.dataset.page === page
         );
 
     });
 
+
+const info =
+    PAGE_INFO[page] ||
+    PAGE_INFO.dashboard;
+
+
+document.getElementById(
+    "pageTitle"
+).textContent =
+    info.title;
+
+
+document.getElementById(
+    "pageSubtitle"
+).textContent =
+    info.subtitle;
+
+
+switch (page) {
+
+    case "dashboard":
+        renderDashboard();
+        break;
+
+    case "customers":
+        renderCustomers();
+        break;
+
+    case "products":
+        renderProducts();
+        break;
+
+    case "enquiries":
+        renderSimpleTable(
+            "enquiries",
+            "Enquiries"
+        );
+        break;
+
+    case "quotations":
+        renderSimpleTable(
+            "quotations",
+            "Quotations"
+        );
+        break;
+
+    case "orders":
+        renderSimpleTable(
+            "orders",
+            "Orders"
+        );
+        break;
+
+    case "followups":
+        renderSimpleTable(
+            "followups",
+            "Follow-ups"
+        );
+        break;
+
+    case "payments":
+        renderSimpleTable(
+            "payments",
+            "Payments"
+        );
+        break;
+
+    default:
+        renderDashboard();
+}
+
+}
+
+/* =========================================================
+HELPERS
+========================================================= */
+
+function escapeHtml(value) {
+
+if (
+    value === null ||
+    value === undefined
+) {
+    return "";
+}
+
+return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+function formatCurrency(value) {
+
+const number =
+    Number(value || 0);
+
+
+return number.toLocaleString(
+    "en-IN",
+    {
+        style: "currency",
+        currency: "INR",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }
+);
+
+}
+
+/* =========================================================
+MODAL STYLES
+========================================================= */
+
+function addModalStylesIfNeeded() {
+
+if (
+    document.getElementById(
+        "customer-modal-styles"
+    )
+) {
+    return;
+}
+
+
+const style =
+    document.createElement("style");
+
+
+style.id =
+    "customer-modal-styles";
+
+
+style.textContent = `
+
+    .small-action {
+        border: 1px solid #d1d5db;
+        background: #fff;
+        color: #374151;
+        padding: 6px 9px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .small-action:hover {
+        background: #f3f4f6;
+    }
+
+    .small-action.danger {
+        color: #b91c1c;
+        border-color: #fecaca;
+    }
+
+    .small-action.danger:hover {
+        background: #fef2f2;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15,23,42,.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 9999;
+    }
+
+    .modal {
+        width: min(850px, 100%);
+        max-height: 90vh;
+        overflow-y: auto;
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 25px 70px rgba(0,0,0,.20);
+    }
+
+    .modal-header {
+        padding: 22px 24px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 20px;
+    }
+
+    .modal-header p {
+        margin-top: 5px;
+        color: #6b7280;
+        font-size: 12px;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: #f3f4f6;
+        border-radius: 8px;
+        font-size: 22px;
+        cursor: pointer;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        padding: 24px;
+    }
+
+    .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-field.full {
+        grid-column: 1 / -1;
+    }
+
+    .form-field label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .form-field input,
+    .form-field textarea,
+    .form-field select {
+        width: 100%;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 10px 11px;
+        outline: none;
+        background: #fff;
+        font: inherit;
+    }
+
+    .form-field input:focus,
+    .form-field textarea:focus,
+    .form-field select:focus {
+        border-color: #2563eb;
+        box-shadow:
+            0 0 0 3px
+            rgba(37,99,235,.10);
+    }
+
+    .modal-footer {
+        padding: 18px 24px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .secondary-button {
+        border: 1px solid #d1d5db;
+        background: #fff;
+        color: #374151;
+        border-radius: 8px;
+        padding: 10px 15px;
+        cursor: pointer;
+    }
+
+    .secondary-button:hover {
+        background: #f3f4f6;
+    }
+
+    @media (max-width: 700px) {
+
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-field.full {
+            grid-column: auto;
+        }
+
+        .modal-footer {
+            flex-direction: column-reverse;
+        }
+
+        .modal-footer button {
+            width: 100%;
+        }
+    }
+`;
+
+
+document.head.appendChild(style);
+
+}
+
+/* =========================================================
+INITIAL NAVIGATION
+========================================================= */
+
+document
+.querySelectorAll(".nav-item")
+.forEach(button => {
+
+    button.addEventListener(
+        "click",
+        () => {
+
+            showPage(
+                button.dataset.page
+            );
+
+        }
+    );
+
+});
 
 showPage("dashboard");
