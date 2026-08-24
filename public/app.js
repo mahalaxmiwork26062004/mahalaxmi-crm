@@ -267,33 +267,19 @@ function showLoading(){
 
 async function renderDashboard(){
 
-    const content =
-    getContent();
-
+    const content = getContent();
 
     content.innerHTML = `
-
     <div class="panel">
-
-    <h3>
-    Loading Dashboard...
-    </h3>
-
+        <h3>Loading Dashboard...</h3>
     </div>
-
     `;
 
 
+    try {
 
-    try{
 
-
-        const [
-            customers,
-            products,
-            enquiries,
-            quotations
-        ] = await Promise.all([
+        const results = await Promise.allSettled([
 
             apiGet("/customers"),
             apiGet("/products"),
@@ -305,28 +291,37 @@ async function renderDashboard(){
 
 
         const customerList =
-        getRows(customers);
+        results[0].status === "fulfilled"
+        ? getRows(results[0].value)
+        : [];
+
 
 
         const productList =
-        getRows(products);
+        results[1].status === "fulfilled"
+        ? getRows(results[1].value)
+        : [];
+
 
 
         const enquiryList =
-        getRows(enquiries);
+        results[2].status === "fulfilled"
+        ? getRows(results[2].value)
+        : [];
+
 
 
         const quotationList =
-        getRows(quotations);
+        results[3].status === "fulfilled"
+        ? getRows(results[3].value)
+        : [];
 
 
 
-        customersCache =
-        customerList;
 
+        customersCache = customerList;
 
-        productsCache =
-        productList;
+        productsCache = productList;
 
 
 
@@ -350,57 +345,29 @@ async function renderDashboard(){
 
 
         <div class="stat-card">
-
-        <h3>
-        Customers
-        </h3>
-
-        <strong>
-        ${customerList.length}
-        </strong>
-
+        <h3>Customers</h3>
+        <strong>${customerList.length}</strong>
         </div>
 
 
 
         <div class="stat-card">
-
-        <h3>
-        Products
-        </h3>
-
-        <strong>
-        ${productList.length}
-        </strong>
-
+        <h3>Products</h3>
+        <strong>${productList.length}</strong>
         </div>
 
 
 
         <div class="stat-card">
-
-        <h3>
-        Enquiries
-        </h3>
-
-        <strong>
-        ${enquiryList.length}
-        </strong>
-
+        <h3>Enquiries</h3>
+        <strong>${enquiryList.length}</strong>
         </div>
 
 
 
         <div class="stat-card">
-
-        <h3>
-        Quotation Value
-        </h3>
-
-        <strong>
-        ${money(quotationValue)}
-        </strong>
-
+        <h3>Quotation Value</h3>
+        <strong>${money(quotationValue)}</strong>
         </div>
 
 
@@ -411,6 +378,8 @@ async function renderDashboard(){
 
     }
     catch(error){
+
+        console.error(error);
 
 
         content.innerHTML = `
@@ -429,8 +398,8 @@ async function renderDashboard(){
 
         `;
 
-
     }
+
 
 }
 
