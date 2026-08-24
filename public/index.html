@@ -2,244 +2,333 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+<meta charset="UTF-8">
 
-    <title>Mahalaxmi Enterprise CRM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <link
-        rel="stylesheet"
-        href="style.css?v=5"
-    >
+<title>Mahalaxmi Enterprise CRM</title>
+
+
+<link
+rel="stylesheet"
+href="style.css?v=6"
+>
+
+
 </head>
 
 
 <body>
 
+
 <div class="app">
 
 
-    <!-- =========================================
-         SIDEBAR
-    ========================================== -->
 
-    <aside class="sidebar">
+<!-- SIDEBAR -->
 
-        <div class="brand">
+<aside class="sidebar">
 
-            <div class="brand-icon">
-                ME
-            </div>
 
-            <div>
+<div class="brand">
 
-                <div class="brand-title">
-                    MAHALAXMI
-                </div>
 
-                <div class="brand-subtitle">
-                    ENTERPRISE CRM
-                </div>
+<div class="brand-icon">
+ME
+</div>
 
-            </div>
 
-        </div>
+<div>
 
+<div class="brand-title">
+MAHALAXMI
+</div>
 
-        <nav class="navigation">
 
-
-            <button
-                type="button"
-                class="nav-item active"
-                data-page="dashboard"
-            >
-                <span>📊</span>
-                Dashboard
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="customers"
-            >
-                <span>👥</span>
-                Customers
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="enquiries"
-            >
-                <span>📩</span>
-                Enquiries
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="products"
-            >
-                <span>📦</span>
-                Products
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="quotations"
-            >
-                <span>💰</span>
-                Quotations
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="orders"
-            >
-                <span>🧾</span>
-                Orders
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="followups"
-            >
-                <span>📅</span>
-                Follow-ups
-            </button>
-
-
-            <button
-                type="button"
-                class="nav-item"
-                data-page="payments"
-            >
-                <span>💳</span>
-                Payments
-            </button>
-
-
-        </nav>
-
-
-        <div class="sidebar-footer">
-
-            <div class="connection-status">
-
-                <span class="status-dot"></span>
-
-                CRM Connected
-
-            </div>
-
-        </div>
-
-    </aside>
-
-
-
-    <!-- =========================================
-         MAIN
-    ========================================== -->
-
-    <main class="main">
-
-
-        <header class="topbar">
-
-
-            <div>
-
-                <h1 id="pageTitle">
-                    Dashboard
-                </h1>
-
-                <p id="pageSubtitle">
-                    Overview of your business activity
-                </p>
-
-            </div>
-
-
-            <div class="topbar-right">
-
-
-                <button
-                    type="button"
-                    class="icon-button"
-                >
-                    🔔
-                </button>
-
-
-                <div class="user">
-
-                    <div class="user-avatar">
-                        H
-                    </div>
-
-
-                    <div class="user-info">
-
-                        <strong>
-                            Harshil
-                        </strong>
-
-                        <span>
-                            Administrator
-                        </span>
-
-                    </div>
-
-                </div>
-
-
-            </div>
-
-
-        </header>
-
-
-
-        <section
-            id="content"
-            class="content"
-        >
-
-            <div class="loading">
-                Loading...
-            </div>
-
-        </section>
-
-
-    </main>
+<div class="brand-subtitle">
+ENTERPRISE CRM
+</div>
 
 
 </div>
 
 
-<!-- Cache-busting version -->
+</div>
+
+
+
+
+<nav class="navigation">
+
+
+
+<button
+class="nav-item active"
+data-page="dashboard">
+
+<span>📊</span>
+Dashboard
+
+</button>
+
+
+
+
+<button
+class="nav-item"
+data-page="customers">
+
+<span>👥</span>
+Customers
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="enquiries">
+
+<span>📩</span>
+Enquiries
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="products">
+
+<span>📦</span>
+Products
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="quotations">
+
+<span>💰</span>
+Quotations
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="orders">
+
+<span>🧾</span>
+Orders
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="followups">
+
+<span>📅</span>
+Follow-ups
+
+</button>
+
+
+
+
+
+<button
+class="nav-item"
+data-page="payments">
+
+<span>💳</span>
+Payments
+
+</button>
+
+
+
+</nav>
+
+
+
+
+<div class="sidebar-footer">
+
+
+<div class="connection-status">
+
+<span class="status-dot"></span>
+
+CRM Connected
+
+
+</div>
+
+
+</div>
+
+
+
+</aside>
+
+
+
+
+
+
+<!-- MAIN -->
+
+<main class="main">
+
+
+
+<header class="topbar">
+
+
+
+<div>
+
+<h1 id="pageTitle">
+Dashboard
+</h1>
+
+
+<p id="pageSubtitle">
+Overview of your business activity
+</p>
+
+
+</div>
+
+
+
+
+
+<div class="topbar-right">
+
+
+<button
+class="icon-button">
+
+🔔
+
+</button>
+
+
+
+
+<div class="user">
+
+
+<div class="user-avatar">
+
+H
+
+</div>
+
+
+
+<div class="user-info">
+
+
+<strong>
+Harshil
+</strong>
+
+
+<span>
+Administrator
+</span>
+
+
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+</header>
+
+
+
+
+
+
+<section
+id="content"
+class="content">
+
+
+<div class="loading">
+
+Loading CRM...
+
+</div>
+
+
+</section>
+
+
+
+
+
+</main>
+
+
+</div>
+
+
+
+
+
+
 <script
-    src="app.js?v=5"
-    defer
-></script>
+src="app.js?v=6"
+defer>
+</script>
+
+
+
+<script>
+
+window.addEventListener(
+"error",
+function(e){
+
+console.error(
+"CRM Loading Error:",
+e.message
+);
+
+});
+
+</script>
+
 
 
 </body>
+
 
 </html>
