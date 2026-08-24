@@ -21,7 +21,6 @@ app.use(express.json({ limit: "10mb" }));
 */
 app.use(express.static(path.join(__dirname, "public")));
 
-
 /* =========================================================
    DATABASE
 ========================================================= */
@@ -37,7 +36,6 @@ const db = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0
 });
-
 
 /* =========================================================
    ALLOWED CRM TABLES
@@ -57,7 +55,6 @@ const ALLOWED_TABLES = [
   "payments"
 ];
 
-
 /* =========================================================
    TABLE ALIASES
 ========================================================= */
@@ -72,7 +69,6 @@ const TABLE_ALIASES = {
   "order-items": "order_items",
   "orderitems": "order_items"
 };
-
 
 /* =========================================================
    HELPERS
@@ -93,7 +89,6 @@ function normalizeTableName(tableName) {
 
   return aliased;
 }
-
 
 async function getTableColumns(tableName) {
   const [rows] = await db.query(
@@ -119,12 +114,10 @@ async function getTableColumns(tableName) {
   return rows;
 }
 
-
 async function getColumnNames(tableName) {
   const rows = await getTableColumns(tableName);
   return rows.map(row => row.COLUMN_NAME);
 }
-
 
 async function validateRequestColumns(tableName, data) {
   const allowedColumns = await getColumnNames(tableName);
@@ -142,7 +135,6 @@ async function validateRequestColumns(tableName, data) {
   };
 }
 
-
 function sanitizeUser(row) {
   const copy = { ...row };
 
@@ -151,7 +143,6 @@ function sanitizeUser(row) {
 
   return copy;
 }
-
 
 /* =========================================================
    HEALTH
@@ -177,7 +168,6 @@ app.get("/api/health", async (req, res) => {
     });
   }
 });
-
 
 /* =========================================================
    API INFORMATION
@@ -209,11 +199,9 @@ app.get("/api", (req, res) => {
     },
 
     tableAliases: TABLE_ALIASES,
-
     tables: ALLOWED_TABLES
   });
 });
-
 
 /* =========================================================
    GET TABLE RECORDS
@@ -254,6 +242,40 @@ app.get("/api/:table", async (req, res) => {
   }
 });
 
+/* =========================================================
+   TABLE SCHEMA
+   Must be before GET /api/:table/:id
+========================================================= */
+
+app.get("/api/:table/schema", async (req, res) => {
+  try {
+    const table = normalizeTableName(req.params.table);
+
+    if (!table) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid table",
+        allowed_tables: ALLOWED_TABLES
+      });
+    }
+
+    const columns = await getTableColumns(table);
+
+    res.json({
+      success: true,
+      table,
+      columns
+    });
+  } catch (error) {
+    console.error("SCHEMA ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to fetch schema",
+      error: error.message
+    });
+  }
+});
 
 /* =========================================================
    GET SINGLE RECORD
@@ -304,7 +326,6 @@ app.get("/api/:table/:id", async (req, res) => {
   }
 });
 
-
 /* =========================================================
    CREATE RECORD
 ========================================================= */
@@ -335,12 +356,6 @@ app.post("/api/:table", async (req, res) => {
       });
     }
 
-    /*
-      Friendly aliases for quotation items.
-      This prevents the previous:
-      Unknown column 'name'
-      error.
-    */
     if (table === "quotation_items") {
       if (
         data.name !== undefined &&
@@ -368,10 +383,6 @@ app.post("/api/:table", async (req, res) => {
       delete data.quote_id;
     }
 
-
-    /*
-      Friendly aliases for order items.
-    */
     if (table === "order_items") {
       if (
         data.name !== undefined &&
@@ -382,7 +393,6 @@ app.post("/api/:table", async (req, res) => {
 
       delete data.name;
     }
-
 
     const validation =
       await validateRequestColumns(table, data);
@@ -397,12 +407,7 @@ app.post("/api/:table", async (req, res) => {
       });
     }
 
-
-    /*
-      Never insert AUTO_INCREMENT id.
-    */
     delete data.id;
-
 
     const columns = Object.keys(data);
 
@@ -412,7 +417,6 @@ app.post("/api/:table", async (req, res) => {
         message: "No insertable fields supplied"
       });
     }
-
 
     const values = columns.map(
       column => data[column]
@@ -426,19 +430,16 @@ app.post("/api/:table", async (req, res) => {
       .map(column => `\`${column}\``)
       .join(", ");
 
-
     const sql = `
       INSERT INTO \`${table}\`
       (${columnNames})
       VALUES (${placeholders})
     `;
 
-
     const [result] = await db.query(
       sql,
       values
     );
-
 
     res.status(201).json({
       success: true,
@@ -457,7 +458,6 @@ app.post("/api/:table", async (req, res) => {
     });
   }
 });
-
 
 /* =========================================================
    UPDATE RECORD
@@ -491,7 +491,6 @@ app.put("/api/:table/:id", async (req, res) => {
 
     delete data.id;
 
-
     const validation =
       await validateRequestColumns(table, data);
 
@@ -505,7 +504,6 @@ app.put("/api/:table/:id", async (req, res) => {
       });
     }
 
-
     const columns = Object.keys(data);
 
     if (columns.length === 0) {
@@ -515,7 +513,6 @@ app.put("/api/:table/:id", async (req, res) => {
       });
     }
 
-
     const values = columns.map(
       column => data[column]
     );
@@ -524,9 +521,7 @@ app.put("/api/:table/:id", async (req, res) => {
       .map(column => `\`${column}\` = ?`)
       .join(", ");
 
-
     values.push(req.params.id);
-
 
     const sql = `
       UPDATE \`${table}\`
@@ -534,12 +529,10 @@ app.put("/api/:table/:id", async (req, res) => {
       WHERE id = ?
     `;
 
-
     const [result] = await db.query(
       sql,
       values
     );
-
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -547,7 +540,6 @@ app.put("/api/:table/:id", async (req, res) => {
         message: `${table} record not found`
       });
     }
-
 
     res.json({
       success: true,
@@ -566,7 +558,6 @@ app.put("/api/:table/:id", async (req, res) => {
     });
   }
 });
-
 
 /* =========================================================
    DELETE RECORD
@@ -613,42 +604,6 @@ app.delete("/api/:table/:id", async (req, res) => {
     });
   }
 });
-
-
-/* =========================================================
-   TABLE SCHEMA
-========================================================= */
-
-app.get("/api/:table/schema", async (req, res) => {
-  try {
-    const table = normalizeTableName(req.params.table);
-
-    if (!table) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
-      });
-    }
-
-    const columns = await getTableColumns(table);
-
-    res.json({
-      success: true,
-      table,
-      columns
-    });
-  } catch (error) {
-    console.error("SCHEMA ERROR:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to fetch schema",
-      error: error.message
-    });
-  }
-});
-
 
 /* =========================================================
    QUOTATION DETAILS
@@ -702,7 +657,6 @@ app.get("/api/quotations/:id/details", async (req, res) => {
   }
 });
 
-
 /* =========================================================
    GET QUOTATION ITEMS
 ========================================================= */
@@ -736,7 +690,6 @@ app.get("/api/quotations/:id/items", async (req, res) => {
   }
 });
 
-
 /* =========================================================
    ADD ITEM TO QUOTATION
 ========================================================= */
@@ -767,7 +720,6 @@ app.post("/api/quotations/:id/items", async (req, res) => {
       quotation_id: quotationId
     };
 
-
     if (
       data.name !== undefined &&
       data.description === undefined
@@ -785,13 +737,11 @@ app.post("/api/quotations/:id/items", async (req, res) => {
     delete data.name;
     delete data.product_name;
 
-
     const validation =
       await validateRequestColumns(
         "quotation_items",
         data
       );
-
 
     if (!validation.valid) {
       return res.status(400).json({
@@ -804,9 +754,7 @@ app.post("/api/quotations/:id/items", async (req, res) => {
       });
     }
 
-
     delete data.id;
-
 
     const columns = Object.keys(data);
 
@@ -822,19 +770,16 @@ app.post("/api/quotations/:id/items", async (req, res) => {
       .map(column => `\`${column}\``)
       .join(", ");
 
-
     const sql = `
       INSERT INTO quotation_items
       (${columnNames})
       VALUES (${placeholders})
     `;
 
-
     const [result] = await db.query(
       sql,
       values
     );
-
 
     res.status(201).json({
       success: true,
@@ -854,17 +799,10 @@ app.post("/api/quotations/:id/items", async (req, res) => {
   }
 });
 
-
 /* =========================================================
    ROOT PAGE
 ========================================================= */
 
-/*
-  public/index.html is served automatically by
-  express.static() above.
-
-  This fallback is kept only as a backup.
-*/
 app.get("/", (req, res) => {
   res.sendFile(
     path.join(__dirname, "public", "index.html"),
@@ -873,15 +811,12 @@ app.get("/", (req, res) => {
         res.send(`
           <h1>Mahalaxmi Enterprise AI CRM</h1>
           <p>CRM server is running.</p>
-          <p>
-            Create public/index.html to load the dashboard.
-          </p>
+          <p>Create public/index.html to load the dashboard.</p>
         `);
       }
     }
   );
 });
-
 
 /* =========================================================
    API 404
@@ -896,7 +831,6 @@ app.use("/api", (req, res) => {
   });
 });
 
-
 /* =========================================================
    GLOBAL ERROR HANDLER
 ========================================================= */
@@ -910,7 +844,6 @@ app.use((error, req, res, next) => {
     error: error.message
   });
 });
-
 
 /* =========================================================
    START SERVER
