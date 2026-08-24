@@ -56,13 +56,18 @@ const TABLE_ALIASES = {
    HELPERS
 ========================================================= */
 
-function normalizeTableName(name) {
-  if (!name) return null;
+function normalizeTableName(tableName) {
+  if (!tableName) return null;
 
-  const normalized = String(name).trim().toLowerCase();
-  const table = TABLE_ALIASES[normalized] || normalized;
+  const normalized = String(tableName)
+    .trim()
+    .toLowerCase();
 
-  return ALLOWED_TABLES.includes(table) ? table : null;
+  const aliased = TABLE_ALIASES[normalized] || normalized;
+
+  return ALLOWED_TABLES.includes(aliased)
+    ? aliased
+    : null;
 }
 
 async function getTableColumns(tableName) {
@@ -87,36 +92,40 @@ async function getTableColumns(tableName) {
 }
 
 async function getColumnNames(tableName) {
-  const columns = await getTableColumns(tableName);
-  return columns.map(x => x.COLUMN_NAME);
+  const rows = await getTableColumns(tableName);
+  return rows.map(row => row.COLUMN_NAME);
 }
 
-async function validateColumns(table, data) {
-  const allowed = await getColumnNames(table);
+async function validateRequestColumns(tableName, data) {
+  const allowedColumns = await getColumnNames(tableName);
 
-  const invalid = Object.keys(data).filter(
-    key => !allowed.includes(key)
+  const invalidColumns = Object.keys(data).filter(
+    column => !allowedColumns.includes(column)
   );
 
   return {
-    valid: invalid.length === 0,
-    invalidColumns: invalid,
-    allowedColumns: allowed
+    valid: invalidColumns.length === 0,
+    invalidColumns,
+    allowedColumns
   };
 }
 
 function sanitizeUser(row) {
-  const result = { ...row };
+  const copy = { ...row };
 
-  delete result.password;
-  delete result.password_hash;
+  delete copy.password;
+  delete copy.password_hash;
 
-  return result;
+  return copy;
 }
 
-function money(value) {
-  const n = Number(value || 0);
-  return Number(n.toFixed(2));
+function number(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function round2(value) {
+  return Math.round((number(value) + Number.EPSILON) * 100) / 100;
 }
 
 /* =========================================================
@@ -124,32 +133,35 @@ function money(value) {
 ========================================================= */
 
 async function generateQuotationNumber() {
-  const year = new Date().getFullYear();
+  const columns = await getColumnNames("quotations");
+
+  if (!columns.includes("quotation_number")) {
+    return null;
+  }
 
   const [rows] = await db.query(
     `
     SELECT quotation_number
     FROM quotations
-    WHERE quotation_number LIKE ?
+    WHERE quotation_number IS NOT NULL
     ORDER BY id DESC
     LIMIT 1
-    `,
-    [`QTN-${year}-%`]
+    `
   );
 
-  let next = 1;
+  let nextNumber = 1;
 
-  if (rows.length) {
-    const match = String(rows[0].quotation_number).match(
-      /QTN-\d{4}-(\d+)/
-    );
+  if (rows.length && rows[0].quotation_number) {
+    const match = String(rows[0].quotation_number).match(/(\d+)$/);
 
     if (match) {
-      next = Number(match[1]) + 1;
+      nextNumber = Number(match[1]) + 1;
     }
   }
 
-  return `QTN-${year}-${String(next).padStart(4, "0")}`;
+  const year = new Date().getFullYear();
+
+  return `MCE-Q-${year}-${String(nextNumber).padStart(4, "0")}`;
 }
 
 /* =========================================================
@@ -186,12 +198,26 @@ app.get("/api", (req, res) => {
     success: true,
     application: "Mahalaxmi Enterprise AI CRM",
     version: "3.0",
+
+    quotationFeatures: [
+      "Automatic quotation number",
+      "Multiple quotation items",
+      "Discount percentage",
+      "Discount amount",
+      "Freight",
+      "GST",
+      "Grand total",
+      "Save quotation",
+      "PDF-ready quotation",
+      "WhatsApp sharing"
+    ],
+
     tables: ALLOWED_TABLES
   });
 });
 
 /* =========================================================
-   NEXT QUOTATION NUMBER
+   QUOTATION NUMBER PREVIEW
 ========================================================= */
 
 app.get("/api/quotations/next-number", async (req, res) => {
@@ -237,7 +263,9 @@ app.get("/api/:table", async (req, res) => {
       table,
       count: rows.length,
       data: rows.map(row =>
-        table === "users" ? sanitizeUser(row) : row
+        table === "users"
+          ? sanitizeUser(row)
+          : row
       )
     });
   } catch (error) {
@@ -274,6 +302,8 @@ app.get("/api/:table/schema", async (req, res) => {
       columns
     });
   } catch (error) {
+    console.error("SCHEMA ERROR:", error);
+
     res.status(500).json({
       success: false,
       message: "Unable to fetch schema",
@@ -283,70 +313,291 @@ app.get("/api/:table/schema", async (req, res) => {
 });
 
 /* =========================================================
-   QUOTATION DETAILS
+   GET SINGLE
 ========================================================= */
 
-app.get("/api/quotations/:id/details", async (req, res) => {
+app.get("/api/:table/:id", async (req, res) => {
   try {
-    const id = req.params.id;
+    const table = normalizeTableName(req.params.table);
 
-    const [quotationRows] = await db.query(
-      `SELECT * FROM quotations WHERE id = ? LIMIT 1`,
-      [id]
-    );
-
-    if (!quotationRows.length) {
-      return res.status(404).json({
+    if (!table) {
+      return res.status(400).json({
         success: false,
-        message: "Quotation not found"
+        message: "Invalid table"
       });
     }
 
-    const [items] = await db.query(
-      `
-      SELECT *
-      FROM quotation_items
-      WHERE quotation_id = ?
-      ORDER BY id ASC
-      `,
-      [id]
+    const [rows] = await db.query(
+      `SELECT * FROM \`${table}\` WHERE id = ? LIMIT 1`,
+      [req.params.id]
     );
 
-    let customer = null;
-
-    if (quotationRows[0].customer_id) {
-      const [customers] = await db.query(
-        `SELECT * FROM customers WHERE id = ? LIMIT 1`,
-        [quotationRows[0].customer_id]
-      );
-
-      if (customers.length) {
-        customer = customers[0];
-      }
+    if (!rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found"
+      });
     }
 
     res.json({
       success: true,
-      quotation: quotationRows[0],
-      customer,
-      items
+      data:
+        table === "users"
+          ? sanitizeUser(rows[0])
+          : rows[0]
     });
   } catch (error) {
-    console.error("QUOTATION DETAILS ERROR:", error);
+    console.error("GET SINGLE ERROR:", error);
 
     res.status(500).json({
       success: false,
-      message: "Unable to load quotation",
+      message: "Unable to fetch record",
       error: error.message
     });
   }
 });
 
 /* =========================================================
-   CREATE QUOTATION
+   GENERIC CREATE
 ========================================================= */
 
-app.post("/api/quotations/create", async (req, res) => {
+app.post("/api/:table", async (req, res) => {
+  try {
+    const table = normalizeTableName(req.params.table);
+
+    if (!table) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid table"
+      });
+    }
+
+    let data = { ...req.body };
+
+    delete data.id;
+
+    if (
+      !data ||
+      typeof data !== "object" ||
+      Array.isArray(data) ||
+      !Object.keys(data).length
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body is required"
+      });
+    }
+
+    /* quotation item aliases */
+
+    if (table === "quotation_items") {
+      if (
+        data.name !== undefined &&
+        data.description === undefined
+      ) {
+        data.description = data.name;
+      }
+
+      if (
+        data.product_name !== undefined &&
+        data.description === undefined
+      ) {
+        data.description = data.product_name;
+      }
+
+      if (
+        data.quote_id !== undefined &&
+        data.quotation_id === undefined
+      ) {
+        data.quotation_id = data.quote_id;
+      }
+
+      delete data.name;
+      delete data.product_name;
+      delete data.quote_id;
+    }
+
+    const validation =
+      await validateRequestColumns(table, data);
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid column(s) supplied",
+        invalid_columns: validation.invalidColumns,
+        allowed_columns: validation.allowedColumns
+      });
+    }
+
+    const columns = Object.keys(data);
+
+    const values = columns.map(
+      column => data[column]
+    );
+
+    const placeholders = columns
+      .map(() => "?")
+      .join(",");
+
+    const columnNames = columns
+      .map(column => `\`${column}\``)
+      .join(",");
+
+    const [result] = await db.query(
+      `
+      INSERT INTO \`${table}\`
+      (${columnNames})
+      VALUES (${placeholders})
+      `,
+      values
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `${table} created successfully`,
+      id: result.insertId
+    });
+  } catch (error) {
+    console.error("CREATE ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to create record",
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+/* =========================================================
+   GENERIC UPDATE
+========================================================= */
+
+app.put("/api/:table/:id", async (req, res) => {
+  try {
+    const table = normalizeTableName(req.params.table);
+
+    if (!table) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid table"
+      });
+    }
+
+    const data = { ...req.body };
+
+    delete data.id;
+
+    if (!Object.keys(data).length) {
+      return res.status(400).json({
+        success: false,
+        message: "No fields supplied"
+      });
+    }
+
+    const validation =
+      await validateRequestColumns(table, data);
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid column(s) supplied",
+        invalid_columns: validation.invalidColumns,
+        allowed_columns: validation.allowedColumns
+      });
+    }
+
+    const columns = Object.keys(data);
+
+    const values = columns.map(
+      column => data[column]
+    );
+
+    const setClause = columns
+      .map(column => `\`${column}\` = ?`)
+      .join(",");
+
+    values.push(req.params.id);
+
+    const [result] = await db.query(
+      `
+      UPDATE \`${table}\`
+      SET ${setClause}
+      WHERE id = ?
+      `,
+      values
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${table} updated successfully`
+    });
+  } catch (error) {
+    console.error("UPDATE ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to update record",
+      error: error.message,
+      code: error.code || null
+    });
+  }
+});
+
+/* =========================================================
+   GENERIC DELETE
+========================================================= */
+
+app.delete("/api/:table/:id", async (req, res) => {
+  try {
+    const table = normalizeTableName(req.params.table);
+
+    if (!table) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid table"
+      });
+    }
+
+    const [result] = await db.query(
+      `DELETE FROM \`${table}\` WHERE id = ?`,
+      [req.params.id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({
+        success: false,
+        message: "Record not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${table} deleted successfully`
+    });
+  } catch (error) {
+    console.error("DELETE ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to delete record",
+      error: error.message
+    });
+  }
+});
+
+/* =========================================================
+   CREATE COMPLETE QUOTATION
+========================================================= */
+
+app.post("/api/quotations/create-complete", async (req, res) => {
   const connection = await db.getConnection();
 
   try {
@@ -354,39 +605,32 @@ app.post("/api/quotations/create", async (req, res) => {
 
     const body = req.body || {};
 
-    let quotationNumber =
-      body.quotation_number ||
-      await generateQuotationNumber();
+    const customerId =
+      body.customer_id || null;
 
     const quotationDate =
       body.quotation_date ||
       new Date().toISOString().slice(0, 10);
 
     const validUntil =
-      body.valid_until ||
-      null;
-
-    const customerId =
-      body.customer_id ||
-      null;
+      body.valid_until || null;
 
     const status =
-      body.status ||
-      "Draft";
+      body.status || "Draft";
+
+    const discountPercent =
+      number(body.discount_percent);
+
+    const freight =
+      number(body.freight);
+
+    const gstPercent =
+      number(body.gst_percent);
 
     const items =
       Array.isArray(body.items)
         ? body.items
         : [];
-
-    if (!customerId) {
-      await connection.rollback();
-
-      return res.status(400).json({
-        success: false,
-        message: "Please select a customer"
-      });
-    }
 
     if (!items.length) {
       await connection.rollback();
@@ -397,190 +641,203 @@ app.post("/api/quotations/create", async (req, res) => {
       });
     }
 
-    /* -------------------------------------------------------
-       Calculate totals
-    ------------------------------------------------------- */
+    /* -----------------------------------------------------
+       CALCULATE ITEMS
+    ----------------------------------------------------- */
 
     let subtotal = 0;
-    let itemDiscountTotal = 0;
 
-    const preparedItems = items.map(item => {
-      const quantity = Math.max(
-        0,
-        Number(item.quantity || 0)
+    const calculatedItems = items.map(item => {
+      const quantity = number(item.quantity);
+      const rate = number(item.rate);
+
+      const amount = round2(
+        quantity * rate
       );
 
-      const unitPrice = Math.max(
-        0,
-        Number(item.unit_price || 0)
-      );
-
-      const discountPercent = Math.max(
-        0,
-        Number(item.discount_percent || item.discount || 0)
-      );
-
-      const gross = quantity * unitPrice;
-
-      const discountAmount =
-        gross * discountPercent / 100;
-
-      const lineTotal =
-        gross - discountAmount;
-
-      subtotal += lineTotal;
-      itemDiscountTotal += discountAmount;
+      subtotal += amount;
 
       return {
-        product_id: item.product_id || null,
-        description:
-          item.description ||
-          item.product_name ||
-          "",
+        ...item,
         quantity,
-        unit_price: unitPrice,
-        discount_percent: discountPercent,
-        discount_amount: discountAmount,
-        gst_percent:
-          Number(item.gst_percent || 18),
-        total: lineTotal
+        rate,
+        amount
       };
     });
 
-    const quotationDiscountPercent =
-      Math.max(
-        0,
-        Number(body.discount_percent || 0)
+    subtotal = round2(subtotal);
+
+    const discountAmount =
+      round2(
+        subtotal * discountPercent / 100
       );
 
-    const quotationDiscountAmount =
-      subtotal * quotationDiscountPercent / 100;
-
-    const freight =
-      Math.max(
-        0,
-        Number(body.freight || 0)
+    const taxableBeforeFreight =
+      round2(
+        subtotal - discountAmount
       );
 
     const taxableAmount =
-      subtotal -
-      quotationDiscountAmount +
-      freight;
-
-    const gstPercent =
-      Number(body.gst_percent || 18);
+      round2(
+        taxableBeforeFreight + freight
+      );
 
     const gstAmount =
-      taxableAmount * gstPercent / 100;
+      round2(
+        taxableAmount * gstPercent / 100
+      );
 
     const grandTotal =
-      taxableAmount + gstAmount;
+      round2(
+        taxableAmount + gstAmount
+      );
 
-    /* -------------------------------------------------------
-       Detect available quotation columns
-    ------------------------------------------------------- */
+    /* -----------------------------------------------------
+       QUOTATION COLUMNS
+    ----------------------------------------------------- */
 
     const quotationColumns =
       await getColumnNames("quotations");
 
+    const quotationNumber =
+      await generateQuotationNumber();
+
     const quotationData = {};
 
-    const setIfExists = (column, value) => {
-      if (quotationColumns.includes(column)) {
-        quotationData[column] = value;
-      }
+    const possibleQuotationFields = {
+      quotation_number: quotationNumber,
+      customer_id: customerId,
+      quotation_date: quotationDate,
+      valid_until: validUntil,
+      status,
+      subtotal,
+      discount_percent: discountPercent,
+      discount_amount: discountAmount,
+      freight,
+      taxable_amount: taxableAmount,
+      gst_percent: gstPercent,
+      gst_amount: gstAmount,
+      grand_total: grandTotal,
+      notes: body.notes || null
     };
 
-    setIfExists("quotation_number", quotationNumber);
-    setIfExists("customer_id", customerId);
-    setIfExists("quotation_date", quotationDate);
-    setIfExists("valid_until", validUntil);
-    setIfExists("status", status);
-    setIfExists("subtotal", money(subtotal));
-    setIfExists("discount", money(quotationDiscountAmount));
-    setIfExists(
-      "discount_percent",
-      money(quotationDiscountPercent)
-    );
-    setIfExists("freight", money(freight));
-    setIfExists("gst_percent", money(gstPercent));
-    setIfExists("gst_amount", money(gstAmount));
-    setIfExists("grand_total", money(grandTotal));
-    setIfExists("notes", body.notes || "");
+    for (const [field, value] of Object.entries(
+      possibleQuotationFields
+    )) {
+      if (quotationColumns.includes(field)) {
+        quotationData[field] = value;
+      }
+    }
 
-    if (!Object.keys(quotationData).length) {
+    /* fallback if quotation number is required */
+
+    if (
+      quotationColumns.includes("quotation_number") &&
+      !quotationData.quotation_number
+    ) {
+      quotationData.quotation_number =
+        `MCE-Q-${Date.now()}`;
+    }
+
+    const qColumns =
+      Object.keys(quotationData);
+
+    if (!qColumns.length) {
       throw new Error(
-        "No valid quotation fields found in database"
+        "No compatible quotation columns found in database"
       );
     }
 
-    const columns = Object.keys(quotationData);
+    const qValues =
+      qColumns.map(
+        field => quotationData[field]
+      );
 
-    const placeholders =
-      columns.map(() => "?").join(", ");
+    const qPlaceholders =
+      qColumns.map(() => "?").join(",");
 
-    const values =
-      columns.map(column => quotationData[column]);
+    const qNames =
+      qColumns
+        .map(field => `\`${field}\``)
+        .join(",");
 
     const [quotationResult] =
       await connection.query(
         `
         INSERT INTO quotations
-        (${columns.map(c => `\`${c}\``).join(", ")})
-        VALUES (${placeholders})
+        (${qNames})
+        VALUES (${qPlaceholders})
         `,
-        values
+        qValues
       );
 
     const quotationId =
       quotationResult.insertId;
 
-    /* -------------------------------------------------------
-       Insert items
-    ------------------------------------------------------- */
+    /* -----------------------------------------------------
+       INSERT ITEMS
+    ----------------------------------------------------- */
 
     const itemColumns =
-      await getColumnNames("quotation_items");
+      await getColumnNames(
+        "quotation_items"
+      );
 
-    for (const item of preparedItems) {
-      const data = {};
+    for (const item of calculatedItems) {
+      const itemData = {};
 
-      const add = (column, value) => {
-        if (itemColumns.includes(column)) {
-          data[column] = value;
-        }
+      const possibleItemFields = {
+        quotation_id: quotationId,
+        product_id:
+          item.product_id || null,
+        description:
+          item.description ||
+          item.product_name ||
+          item.name ||
+          "",
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount
       };
 
-      add("quotation_id", quotationId);
-      add("product_id", item.product_id);
-      add("description", item.description);
-      add("quantity", item.quantity);
-      add("unit_price", item.unit_price);
-      add("discount", money(item.discount_amount));
-      add(
-        "discount_percent",
-        money(item.discount_percent)
-      );
-      add(
-        "gst_percent",
-        money(item.gst_percent)
-      );
-      add("total", money(item.total));
+      for (
+        const [field, value]
+        of Object.entries(
+          possibleItemFields
+        )
+      ) {
+        if (itemColumns.includes(field)) {
+          itemData[field] = value;
+        }
+      }
 
-      const itemCols =
-        Object.keys(data);
+      const fields =
+        Object.keys(itemData);
 
-      const itemValues =
-        itemCols.map(c => data[c]);
+      if (!fields.length) {
+        continue;
+      }
+
+      const values =
+        fields.map(
+          field => itemData[field]
+        );
+
+      const placeholders =
+        fields.map(() => "?").join(",");
+
+      const names =
+        fields
+          .map(field => `\`${field}\``)
+          .join(",");
 
       await connection.query(
         `
         INSERT INTO quotation_items
-        (${itemCols.map(c => `\`${c}\``).join(", ")})
-        VALUES
-        (${itemCols.map(() => "?").join(", ")})
+        (${names})
+        VALUES (${placeholders})
         `,
-        itemValues
+        values
       );
     }
 
@@ -589,23 +846,31 @@ app.post("/api/quotations/create", async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Quotation saved successfully",
-      quotation_id: quotationId,
-      quotation_number: quotationNumber,
-      subtotal: money(subtotal),
-      discount_percent:
-        money(quotationDiscountPercent),
-      discount_amount:
-        money(quotationDiscountAmount),
-      freight: money(freight),
-      gst_percent: money(gstPercent),
-      gst_amount: money(gstAmount),
-      grand_total: money(grandTotal)
+
+      quotation: {
+        id: quotationId,
+        quotation_number:
+          quotationData.quotation_number ||
+          quotationId,
+        quotation_date: quotationDate,
+        customer_id: customerId,
+        subtotal,
+        discount_percent: discountPercent,
+        discount_amount: discountAmount,
+        freight,
+        taxable_amount: taxableAmount,
+        gst_percent: gstPercent,
+        gst_amount: gstAmount,
+        grand_total: grandTotal
+      },
+
+      items: calculatedItems
     });
   } catch (error) {
     await connection.rollback();
 
     console.error(
-      "CREATE QUOTATION ERROR:",
+      "CREATE COMPLETE QUOTATION ERROR:",
       error
     );
 
@@ -621,329 +886,158 @@ app.post("/api/quotations/create", async (req, res) => {
 });
 
 /* =========================================================
-   UPDATE QUOTATION
+   QUOTATION DETAILS
 ========================================================= */
 
-app.put("/api/quotations/:id/full", async (req, res) => {
-  const connection = await db.getConnection();
+app.get(
+  "/api/quotations/:id/details",
+  async (req, res) => {
+    try {
+      const quotationId =
+        req.params.id;
 
-  try {
-    await connection.beginTransaction();
+      const [quotations] =
+        await db.query(
+          `
+          SELECT *
+          FROM quotations
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [quotationId]
+        );
 
-    const quotationId =
-      req.params.id;
-
-    const body =
-      req.body || {};
-
-    const items =
-      Array.isArray(body.items)
-        ? body.items
-        : [];
-
-    if (!items.length) {
-      throw new Error(
-        "Quotation must contain at least one item"
-      );
-    }
-
-    let subtotal = 0;
-
-    const preparedItems =
-      items.map(item => {
-        const quantity =
-          Number(item.quantity || 0);
-
-        const unitPrice =
-          Number(item.unit_price || 0);
-
-        const discountPercent =
-          Number(
-            item.discount_percent ||
-            item.discount ||
-            0
-          );
-
-        const gross =
-          quantity * unitPrice;
-
-        const discountAmount =
-          gross *
-          discountPercent /
-          100;
-
-        const total =
-          gross -
-          discountAmount;
-
-        subtotal += total;
-
-        return {
-          product_id:
-            item.product_id || null,
-
-          description:
-            item.description ||
-            item.product_name ||
-            "",
-
-          quantity,
-          unit_price: unitPrice,
-          discount_percent:
-            discountPercent,
-          discount_amount:
-            discountAmount,
-          gst_percent:
-            Number(
-              item.gst_percent || 18
-            ),
-          total
-        };
-      });
-
-    const discountPercent =
-      Number(
-        body.discount_percent || 0
-      );
-
-    const discountAmount =
-      subtotal *
-      discountPercent /
-      100;
-
-    const freight =
-      Number(body.freight || 0);
-
-    const gstPercent =
-      Number(body.gst_percent || 18);
-
-    const taxable =
-      subtotal -
-      discountAmount +
-      freight;
-
-    const gstAmount =
-      taxable *
-      gstPercent /
-      100;
-
-    const grandTotal =
-      taxable + gstAmount;
-
-    const columns =
-      await getColumnNames(
-        "quotations"
-      );
-
-    const data = {};
-
-    const set = (column, value) => {
-      if (columns.includes(column)) {
-        data[column] = value;
+      if (!quotations.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Quotation not found"
+        });
       }
-    };
 
-    set(
-      "customer_id",
-      body.customer_id || null
-    );
+      const [items] =
+        await db.query(
+          `
+          SELECT *
+          FROM quotation_items
+          WHERE quotation_id = ?
+          ORDER BY id ASC
+          `,
+          [quotationId]
+        );
 
-    set(
-      "quotation_date",
-      body.quotation_date ||
-      new Date()
-        .toISOString()
-        .slice(0, 10)
-    );
-
-    set(
-      "valid_until",
-      body.valid_until || null
-    );
-
-    set(
-      "status",
-      body.status || "Draft"
-    );
-
-    set(
-      "subtotal",
-      money(subtotal)
-    );
-
-    set(
-      "discount",
-      money(discountAmount)
-    );
-
-    set(
-      "discount_percent",
-      money(discountPercent)
-    );
-
-    set(
-      "freight",
-      money(freight)
-    );
-
-    set(
-      "gst_percent",
-      money(gstPercent)
-    );
-
-    set(
-      "gst_amount",
-      money(gstAmount)
-    );
-
-    set(
-      "grand_total",
-      money(grandTotal)
-    );
-
-    set(
-      "notes",
-      body.notes || ""
-    );
-
-    const updateColumns =
-      Object.keys(data);
-
-    if (updateColumns.length) {
-      await connection.query(
-        `
-        UPDATE quotations
-        SET
-        ${updateColumns
-          .map(c => `\`${c}\` = ?`)
-          .join(", ")}
-        WHERE id = ?
-        `,
-        [
-          ...updateColumns.map(
-            c => data[c]
-          ),
-          quotationId
-        ]
+      res.json({
+        success: true,
+        quotation: quotations[0],
+        items
+      });
+    } catch (error) {
+      console.error(
+        "QUOTATION DETAILS ERROR:",
+        error
       );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Unable to fetch quotation details",
+        error: error.message
+      });
     }
+  }
+);
 
-    await connection.query(
-      `
-      DELETE FROM quotation_items
-      WHERE quotation_id = ?
-      `,
-      [quotationId]
-    );
+/* =========================================================
+   QUOTATION ITEMS
+========================================================= */
 
-    const itemColumns =
-      await getColumnNames(
-        "quotation_items"
-      );
+app.get(
+  "/api/quotations/:id/items",
+  async (req, res) => {
+    try {
+      const [rows] =
+        await db.query(
+          `
+          SELECT *
+          FROM quotation_items
+          WHERE quotation_id = ?
+          ORDER BY id ASC
+          `,
+          [req.params.id]
+        );
 
-    for (const item of preparedItems) {
-      const dataItem = {};
+      res.json({
+        success: true,
+        quotation_id:
+          Number(req.params.id),
+        count: rows.length,
+        items: rows
+      });
+    } catch (error) {
+      console.error(error);
 
-      const add = (column, value) => {
-        if (itemColumns.includes(column)) {
-          dataItem[column] = value;
-        }
-      };
-
-      add(
-        "quotation_id",
-        quotationId
-      );
-
-      add(
-        "product_id",
-        item.product_id
-      );
-
-      add(
-        "description",
-        item.description
-      );
-
-      add(
-        "quantity",
-        item.quantity
-      );
-
-      add(
-        "unit_price",
-        item.unit_price
-      );
-
-      add(
-        "discount",
-        money(
-          item.discount_amount
-        )
-      );
-
-      add(
-        "discount_percent",
-        money(
-          item.discount_percent
-        )
-      );
-
-      add(
-        "gst_percent",
-        money(
-          item.gst_percent
-        )
-      );
-
-      add(
-        "total",
-        money(item.total)
-      );
-
-      const cols =
-        Object.keys(dataItem);
-
-      await connection.query(
-        `
-        INSERT INTO quotation_items
-        (${cols.map(c => `\`${c}\``).join(", ")})
-        VALUES
-        (${cols.map(() => "?").join(", ")})
-        `,
-        cols.map(c => dataItem[c])
-      );
+      res.status(500).json({
+        success: false,
+        message:
+          "Unable to fetch quotation items",
+        error: error.message
+      });
     }
+  }
+);
 
-    await connection.commit();
+/* =========================================================
+   ROOT
+========================================================= */
 
-    res.json({
-      success: true,
-      message: "Quotation updated successfully",
-      quotation_id:
-        Number(quotationId),
-      grand_total:
-        money(grandTotal)
-    });
-  } catch (error) {
-    await connection.rollback();
+app.get("/", (req, res) => {
+  res.sendFile(
+    path.join(
+      __dirname,
+      "public",
+      "index.html"
+    )
+  );
+});
 
+/* =========================================================
+   API 404
+========================================================= */
+
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "API endpoint not found",
+    method: req.method,
+    path: req.originalUrl
+  });
+});
+
+/* =========================================================
+   ERROR HANDLER
+========================================================= */
+
+app.use(
+  (error, req, res, next) => {
     console.error(
-      "UPDATE QUOTATION ERROR:",
+      "GLOBAL ERROR:",
       error
     );
 
     res.status(500).json({
       success: false,
       message:
-        "Unable to update quotation",
+        "Internal server error",
       error: error.message
     });
-  } finally {
-    connection.release();
   }
-});
+);
 
 /* =========================================================
-   GENERIC SINGLE RECORD
-==================================================
+   START
+========================================================= */
+
+app.listen(PORT, () => {
+  console.log(
+    `Mahalaxmi CRM running on port ${PORT}`
+  );
+});
