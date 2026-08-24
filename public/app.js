@@ -1,136 +1,221 @@
-/* Mahalaxmi Enterprise CRM — Professional Quotation Edition */
+/* =====================================================
+   MAHALAXMI ENTERPRISE CRM
+   Professional Quotation Builder Edition
+===================================================== */
+
 "use strict";
 
-const API = "/api";
+
+/* =====================================================
+   CONFIG
+===================================================== */
+
+
+const API_BASE = "/api";
+
 
 let currentPage = "dashboard";
-let pageRequest = 0;
+
 
 let customersCache = [];
 let productsCache = [];
+let quotationsCache = [];
+
+
+
+
+
+/* =====================================================
+   PAGE CONFIG
+===================================================== */
+
 
 const PAGE_INFO = {
+
 
     dashboard:{
         title:"Dashboard",
         subtitle:"Overview of your business activity"
     },
 
+
     customers:{
         title:"Customers",
         subtitle:"Manage your customers"
     },
+
 
     enquiries:{
         title:"Enquiries",
         subtitle:"Track customer enquiries"
     },
 
+
     products:{
         title:"Products",
-        subtitle:"Products and pricing"
+        subtitle:"Manage products"
     },
+
 
     quotations:{
         title:"Quotations",
-        subtitle:"Professional quotation builder"
+        subtitle:"Create professional quotations"
     },
+
 
     orders:{
         title:"Orders",
-        subtitle:"Manage sales orders"
+        subtitle:"Manage orders"
     },
+
 
     followups:{
         title:"Follow-ups",
-        subtitle:"Customer follow-ups"
+        subtitle:"Customer follow-up activities"
     },
+
 
     payments:{
         title:"Payments",
         subtitle:"Track payments"
     }
 
+
 };
 
 
 
-/* ===============================
-        API
-================================ */
 
 
-async function apiRequest(endpoint,options={}){
+/* =====================================================
+   API FUNCTIONS
+===================================================== */
 
-    const response = await fetch(API+endpoint,{
-        ...options,
+
+async function apiRequest(url, options={}){
+
+
+    const response =
+    await fetch(API_BASE + url, {
+
+
         headers:{
-            "Content-Type":"application/json",
-            ...(options.headers||{})
-        }
+            "Content-Type":"application/json"
+        },
+
+
+        ...options
+
+
     });
 
 
-    let result;
+
+    let data;
+
 
     try{
-        result = await response.json();
-    }
-    catch{
-        throw new Error("Invalid server response");
-    }
 
+        data =
+        await response.json();
 
-    if(!response.ok || result.success===false){
+    }
+    catch(e){
 
         throw new Error(
-            result.error ||
-            result.message ||
+            "Server response error"
+        );
+
+    }
+
+
+
+    if(!response.ok){
+
+        throw new Error(
+            data.error ||
             "Request failed"
         );
 
     }
 
 
-    return result;
+    return data;
+
 
 }
 
 
-const apiGet =
-endpoint =>
-apiRequest(endpoint);
 
 
-const apiPost =
-(endpoint,data)=>
-apiRequest(endpoint,{
-    method:"POST",
-    body:JSON.stringify(data)
-});
 
+async function apiGet(url){
 
-const apiPut =
-(endpoint,data)=>
-apiRequest(endpoint,{
-    method:"PUT",
-    body:JSON.stringify(data)
-});
+    return apiRequest(url);
 
-
-const apiDelete =
-endpoint =>
-apiRequest(endpoint,{
-    method:"DELETE"
-});
+}
 
 
 
 
 
-/* ===============================
-        HELPERS
-================================ */
+async function apiPost(url,data){
+
+
+    return apiRequest(url,{
+
+        method:"POST",
+
+        body:
+        JSON.stringify(data)
+
+    });
+
+
+}
+
+
+
+
+
+async function apiPut(url,data){
+
+
+    return apiRequest(url,{
+
+        method:"PUT",
+
+        body:
+        JSON.stringify(data)
+
+    });
+
+
+}
+
+
+
+
+
+async function apiDelete(url){
+
+
+    return apiRequest(url,{
+
+        method:"DELETE"
+
+    });
+
+
+}
+
+
+
+
+
+/* =====================================================
+   HELPERS
+===================================================== */
 
 
 function getContent(){
@@ -141,126 +226,177 @@ function getContent(){
 
 
 
-function rows(result){
 
-    return Array.isArray(result)
-    ? result
-    : (result.data || []);
+
+function getRows(result){
+
+
+    if(Array.isArray(result))
+        return result;
+
+
+    if(result && Array.isArray(result.data))
+        return result.data;
+
+
+    return [];
 
 }
+
+
+
+
+
+function money(value){
+
+
+    return Number(value || 0)
+    .toLocaleString(
+        "en-IN",
+        {
+
+            style:"currency",
+
+            currency:"INR",
+
+            minimumFractionDigits:2
+
+        }
+    );
+
+
+}
+
+
 
 
 
 function escapeHtml(value){
 
-    return value==null
-    ? ""
-    :
-    String(value)
+
+    if(value===null || value===undefined)
+        return "";
+
+
+    return String(value)
     .replace(/&/g,"&amp;")
     .replace(/</g,"&lt;")
     .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#039;");
+    .replace(/"/g,"&quot;");
+
 
 }
 
 
-
-function formatCurrency(value){
-
-    return Number(value||0)
-    .toLocaleString("en-IN",{
-
-        style:"currency",
-        currency:"INR",
-        minimumFractionDigits:2
-
-    });
-
-}
 
 
 
 function formatDate(value){
 
+
     if(!value)
-        return "—";
+        return "-";
 
 
     return new Date(value)
     .toLocaleDateString(
-        "en-IN",
-        {
-            day:"2-digit",
-            month:"short",
-            year:"numeric"
-        }
+        "en-IN"
     );
 
-}
-
-
-
-function humanize(value){
-
-    return String(value||"")
-    .replace(/_/g," ")
-    .replace(/\b\w/g,c=>c.toUpperCase());
 
 }
 
 
 
-function notify(message,type="success"){
-
-    let box=document.getElementById("crmToast");
 
 
-    if(!box){
+function showToast(message,type="success"){
 
-        box=document.createElement("div");
 
-        box.id="crmToast";
+    let toast =
+    document.getElementById(
+        "crmToast"
+    );
 
-        document.body.appendChild(box);
+
+
+    if(!toast){
+
+
+        toast =
+        document.createElement(
+            "div"
+        );
+
+
+        toast.id =
+        "crmToast";
+
+
+        document.body.appendChild(
+            toast
+        );
+
 
     }
 
 
-    box.innerHTML=message;
 
-    box.className=
-    "crm-toast show "+type;
+    toast.className =
+    "crm-toast "+type;
+
+
+
+    toast.innerHTML =
+    message;
+
 
 
     setTimeout(()=>{
 
-        box.className="crm-toast";
+        toast.className =
+        "crm-toast";
 
     },3000);
 
 
+
 }
 
 
 
 
-/* ===============================
-        HEADER
-================================ */
+
+/* =====================================================
+   HEADER UPDATE
+===================================================== */
 
 
-function updatePageHeader(page){
+function updateHeader(page){
 
-    const info=PAGE_INFO[page];
 
-    document.getElementById("pageTitle").textContent=
+    const info =
+    PAGE_INFO[page];
+
+
+
+    if(!info)
+        return;
+
+
+
+    document
+    .getElementById("pageTitle")
+    .innerText =
     info.title;
 
 
-    document.getElementById("pageSubtitle").textContent=
+
+    document
+    .getElementById("pageSubtitle")
+    .innerText =
     info.subtitle;
+
 
 }
 
@@ -268,73 +404,21 @@ function updatePageHeader(page){
 
 
 
-/* ===============================
-        DASHBOARD
-================================ */
+/* =====================================================
+   LOADING SCREEN
+===================================================== */
 
 
-async function renderDashboard(){
+function showLoading(){
 
 
-    const customers =
-    rows(await apiGet("/customers"));
+    getContent().innerHTML = `
 
+    <div class="panel">
 
-    const products =
-    rows(await apiGet("/products"));
-
-
-    const enquiries =
-    rows(await apiGet("/enquiries"));
-
-
-    const quotations =
-    rows(await apiGet("/quotations"));
-
-
-
-    customersCache=customers;
-
-    productsCache=products;
-
-
-
-    const quotationValue =
-    quotations.reduce(
-        (a,b)=>
-        a+Number(b.grand_total||0),
-        0
-    );
-
-
-
-    getContent().innerHTML=`
-
-    <div class="stats">
-
-        <div class="stat-card">
-            <h3>Customers</h3>
-            <b>${customers.length}</b>
-        </div>
-
-
-        <div class="stat-card">
-            <h3>Products</h3>
-            <b>${products.length}</b>
-        </div>
-
-
-        <div class="stat-card">
-            <h3>Enquiries</h3>
-            <b>${enquiries.length}</b>
-        </div>
-
-
-        <div class="stat-card">
-            <h3>Quotation Value</h3>
-            <b>${formatCurrency(quotationValue)}</b>
-        </div>
-
+        <h3>
+        Loading...
+        </h3>
 
     </div>
 
@@ -342,53 +426,299 @@ async function renderDashboard(){
 
 
 }
+/* =====================================================
+   DASHBOARD
+===================================================== */
+
+
+async function renderDashboard(){
+
+
+    const content =
+    getContent();
+
+
+    content.innerHTML = `
+
+    <div class="panel">
+
+        <h3>
+        Loading Dashboard...
+        </h3>
+
+    </div>
+
+    `;
+
+
+
+    try{
+
+
+        const result =
+        await Promise.all([
+
+            apiGet("/customers"),
+
+            apiGet("/products"),
+
+            apiGet("/enquiries"),
+
+            apiGet("/quotations")
+
+        ]);
+
+
+
+        const customers =
+        getRows(result[0]);
+
+
+        const products =
+        getRows(result[1]);
+
+
+        const enquiries =
+        getRows(result[2]);
+
+
+        const quotations =
+        getRows(result[3]);
+
+
+
+        customersCache =
+        customers;
+
+
+        productsCache =
+        products;
+
+
+        quotationsCache =
+        quotations;
+
+
+
+        const totalQuotation =
+        quotations.reduce(
+            (sum,item)=>
+            sum+
+            Number(
+                item.grand_total || 0
+            ),
+            0
+        );
+
+
+
+
+        content.innerHTML = `
+
+
+        <div class="stats-grid">
+
+
+            <div class="stat-card">
+
+                <h3>
+                Customers
+                </h3>
+
+                <strong>
+                ${customers.length}
+                </strong>
+
+            </div>
+
+
+
+
+            <div class="stat-card">
+
+                <h3>
+                Products
+                </h3>
+
+                <strong>
+                ${products.length}
+                </strong>
+
+            </div>
+
+
+
+
+            <div class="stat-card">
+
+                <h3>
+                Enquiries
+                </h3>
+
+                <strong>
+                ${enquiries.length}
+                </strong>
+
+            </div>
+
+
+
+
+            <div class="stat-card">
+
+                <h3>
+                Quotation Value
+                </h3>
+
+                <strong>
+                ${money(totalQuotation)}
+                </strong>
+
+            </div>
+
+
+        </div>
+
+
+        `;
+
+
+
+    }
+    catch(error){
+
+
+        console.error(error);
+
+
+        content.innerHTML = `
+
+        <div class="panel">
+
+            <h3>
+            Dashboard Error
+            </h3>
+
+            <p>
+            ${escapeHtml(error.message)}
+            </p>
+
+        </div>
+
+        `;
+
+
+    }
+
+
+}
 
 
 
 
 
-/* ===============================
-        SIMPLE MODULES
-================================ */
+
+
+/* =====================================================
+   CUSTOMERS
+===================================================== */
 
 
 async function renderCustomers(){
 
-    customersCache =
-    rows(await apiGet("/customers"));
 
-    renderSimpleTable(
-        "customers",
-        customersCache
+    showLoading();
+
+
+
+    const result =
+    await apiGet("/customers");
+
+
+
+    customersCache =
+    getRows(result);
+
+
+
+    renderTable(
+        customersCache,
+        "Customers"
     );
+
 
 }
 
+
+
+
+
+
+
+/* =====================================================
+   PRODUCTS
+===================================================== */
 
 
 async function renderProducts(){
 
-    productsCache =
-    rows(await apiGet("/products"));
 
-    renderSimpleTable(
-        "products",
-        productsCache
+    showLoading();
+
+
+
+    const result =
+    await apiGet("/products");
+
+
+
+    productsCache =
+    getRows(result);
+
+
+
+    renderTable(
+        productsCache,
+        "Products"
     );
+
 
 }
 
+
+
+
+
+
+
+
+/* =====================================================
+   ENQUIRIES
+===================================================== */
 
 
 async function renderEnquiries(){
 
-    const data =
-    rows(await apiGet("/enquiries"));
 
-    renderSimpleTable(
-        "enquiries",
-        data
+    showLoading();
+
+
+
+    const result =
+    await apiGet("/enquiries");
+
+
+
+    const data =
+    getRows(result);
+
+
+
+    renderTable(
+        data,
+        "Enquiries"
     );
+
 
 }
 
@@ -396,43 +726,88 @@ async function renderEnquiries(){
 
 
 
-function renderSimpleTable(title,data){
 
 
-    const content=getContent();
+
+
+/* =====================================================
+   GENERIC TABLE
+===================================================== */
+
+
+function renderTable(data,title){
+
 
 
     if(!data.length){
 
-        content.innerHTML=
-        "<h3>No records found</h3>";
+
+        getContent().innerHTML = `
+
+
+        <div class="panel">
+
+            <h3>
+            No ${title} found
+            </h3>
+
+        </div>
+
+
+        `;
+
 
         return;
+
 
     }
 
 
 
-    const columns=
+
+    const columns =
     Object.keys(data[0])
-    .slice(0,6);
+    .slice(0,7);
 
 
 
-    content.innerHTML=`
+
+
+    getContent().innerHTML = `
+
+
 
     <div class="panel">
 
-    <table>
+
+    <div class="panel-header">
+
+        <h2>
+        ${title}
+        </h2>
+
+
+    </div>
+
+
+
+
+
+    <table class="crm-table">
+
 
     <thead>
 
     <tr>
 
     ${
-        columns.map(
-            c=>`<th>${humanize(c)}</th>`
-        ).join("")
+        columns.map(col=>`
+
+        <th>
+        ${col.replace("_"," ").toUpperCase()}
+        </th>
+
+        `).join("")
     }
 
     </tr>
@@ -440,38 +815,58 @@ function renderSimpleTable(title,data){
     </thead>
 
 
+
+
+
     <tbody>
+
 
     ${
         data.map(row=>`
 
         <tr>
 
+
         ${
-            columns.map(
-            c=>`<td>${escapeHtml(row[c])}</td>`
-            ).join("")
+            columns.map(col=>`
+
+            <td>
+            ${escapeHtml(row[col])}
+            </td>
+
+            `).join("")
         }
+
 
         </tr>
 
+
         `).join("")
     }
+
+
 
     </tbody>
 
 
     </table>
 
+
     </div>
 
+
     `;
-/* ==========================================
-        PROFESSIONAL QUOTATION BUILDER
-========================================== */
 
 
-let quotationItems=[];
+}
+/* =====================================================
+   PROFESSIONAL QUOTATION BUILDER
+===================================================== */
+
+
+let quotationItems = [];
+
+
 
 
 
@@ -479,18 +874,23 @@ async function renderQuotations(){
 
 
     customersCache =
-    rows(await apiGet("/customers"));
+    getRows(
+        await apiGet("/customers")
+    );
 
 
     productsCache =
-    rows(await apiGet("/products"));
+    getRows(
+        await apiGet("/products")
+    );
 
 
 
     quotationItems=[];
 
 
-    getContent().innerHTML=`
+
+    getContent().innerHTML = `
 
 
 <div class="panel">
@@ -498,23 +898,22 @@ async function renderQuotations(){
 
 <div class="panel-header">
 
-<h2>Create Professional Quotation</h2>
+<h2>
+Create Quotation
+</h2>
 
 </div>
 
 
 
-<div class="panel-body">
+<div class="quotation-box">
 
-
-
-<div class="form-grid">
 
 
 <label>
 Customer
 
-<select id="quoteCustomer">
+<select id="quotationCustomer">
 
 <option value="">
 Select Customer
@@ -522,18 +921,21 @@ Select Customer
 
 
 ${
-customersCache.map(c=>`
+customersCache.map(customer=>`
 
-<option value="${c.id}">
+<option value="${customer.id}">
+
 ${escapeHtml(
-c.company_name ||
-c.contact_person ||
-c.name
+customer.company_name ||
+customer.contact_person ||
+customer.name
 )}
+
 </option>
 
 `).join("")
 }
+
 
 </select>
 
@@ -541,12 +943,17 @@ c.name
 
 
 
+
+<div class="quotation-details">
+
+
 <label>
+
 Quotation Date
 
-<input 
+<input
 type="date"
-id="quoteDate"
+id="quotationDate"
 value="${new Date().toISOString().slice(0,10)}">
 
 </label>
@@ -554,11 +961,12 @@ value="${new Date().toISOString().slice(0,10)}">
 
 
 <label>
+
 Valid Until
 
 <input
 type="date"
-id="quoteValid">
+id="quotationValid">
 
 </label>
 
@@ -568,10 +976,10 @@ id="quoteValid">
 
 
 
-<hr>
 
-
-<h3>Items</h3>
+<h3>
+Products
+</h3>
 
 
 
@@ -600,11 +1008,12 @@ id="quoteValid">
 
 </tr>
 
+
 </thead>
 
 
 
-<tbody id="quoteItemsBody">
+<tbody id="quotationItems">
 
 </tbody>
 
@@ -613,93 +1022,110 @@ id="quoteValid">
 
 
 
-<button 
+<button
 class="button-primary"
-id="addQuoteItem">
+onclick="addQuotationRow()">
 
-+ Add Product
++ Add Item
 
 </button>
 
 
 
-<div class="quote-summary">
+
+
+<div class="quotation-summary">
 
 
 <p>
-Subtotal:
-<b id="quoteSubtotal">
+
+Subtotal
+
+<span id="subtotal">
 ₹0.00
-</b>
+</span>
+
 </p>
 
 
+
 <p>
-Discount:
-<b id="quoteDiscount">
+
+Discount
+
+<span id="discountTotal">
 ₹0.00
-</b>
+</span>
+
 </p>
 
 
+
+
 <p>
-Taxable Amount:
-<b id="quoteTaxable">
+
+Taxable Amount
+
+<span id="taxable">
 ₹0.00
-</b>
+</span>
+
 </p>
 
 
+
+
 <p>
-GST:
-<b id="quoteGST">
+
+GST
+
+<span id="gstTotal">
 ₹0.00
-</b>
+</span>
+
 </p>
 
 
 
 <h2>
 
-Grand Total:
-<span id="quoteGrandTotal">
+Grand Total
+
+<span id="grandTotal">
 ₹0.00
 </span>
 
 </h2>
 
 
+
 </div>
 
-
-
-<br>
 
 
 <label>
 
 Notes
 
-<textarea id="quoteNotes"></textarea>
+<textarea id="quotationNotes"></textarea>
 
 </label>
 
 
 
-<br>
-
 
 <button
 class="button-primary"
-id="saveQuotation">
+onclick="saveQuotation()">
 
-Create Quotation
+Save Quotation
 
 </button>
 
 
 
 </div>
+
 
 </div>
 
@@ -708,19 +1134,7 @@ Create Quotation
 
 
 
-document
-.getElementById("addQuoteItem")
-.onclick=addQuotationItem;
-
-
-
-document
-.getElementById("saveQuotation")
-.onclick=saveQuotation;
-
-
-
-addQuotationItem();
+addQuotationRow();
 
 
 }
@@ -729,7 +1143,10 @@ addQuotationItem();
 
 
 
-function addQuotationItem(){
+
+
+function addQuotationRow(){
+
 
 
 quotationItems.push({
@@ -746,7 +1163,8 @@ total:0
 });
 
 
-renderQuotationRows();
+
+drawQuotationRows();
 
 
 }
@@ -755,18 +1173,20 @@ renderQuotationRows();
 
 
 
-function renderQuotationRows(){
 
 
-const body =
-document.getElementById("quoteItemsBody");
+function drawQuotationRows(){
 
 
-body.innerHTML =
-quotationItems.map((item,index)=>{
+const tbody =
+document.getElementById(
+"quotationItems"
+);
 
 
-return `
+
+tbody.innerHTML = quotationItems.map(
+(item,index)=>`
 
 
 <tr>
@@ -776,7 +1196,7 @@ return `
 
 
 <select
-onchange="updateQuoteProduct(${index},this.value)">
+onchange="selectQuotationProduct(${index},this.value)">
 
 
 <option value="">
@@ -785,13 +1205,17 @@ Select
 
 
 ${
-productsCache.map(p=>`
+productsCache.map(product=>`
 
-<option 
-value="${p.id}"
-${item.product_id==p.id?"selected":""}>
+<option
 
-${escapeHtml(p.name)}
+value="${product.id}"
+
+${item.product_id==product.id?"selected":""}
+
+>
+
+${escapeHtml(product.name)}
 
 </option>
 
@@ -806,6 +1230,7 @@ ${escapeHtml(p.name)}
 
 
 
+
 <td>
 
 <input
@@ -814,9 +1239,11 @@ type="number"
 
 value="${item.quantity}"
 
-oninput="updateQuoteField(${index},'quantity',this.value)">
+oninput="updateQuotationItem(${index},'quantity',this.value)">
 
 </td>
+
+
 
 
 
@@ -828,9 +1255,11 @@ type="number"
 
 value="${item.unit_price}"
 
-oninput="updateQuoteField(${index},'unit_price',this.value)">
+oninput="updateQuotationItem(${index},'unit_price',this.value)">
 
 </td>
+
+
 
 
 
@@ -842,17 +1271,21 @@ type="number"
 
 value="${item.discount_percent}"
 
-oninput="updateQuoteField(${index},'discount_percent',this.value)">
+oninput="updateQuotationItem(${index},'discount_percent',this.value)">
 
 </td>
+
+
 
 
 
 <td>
 
-${formatCurrency(item.discount)}
+${money(item.discount)}
 
 </td>
+
+
 
 
 
@@ -864,28 +1297,34 @@ type="number"
 
 value="${item.gst_percent}"
 
-oninput="updateQuoteField(${index},'gst_percent',this.value)">
+oninput="updateQuotationItem(${index},'gst_percent',this.value)">
 
 </td>
+
+
 
 
 
 <td>
 
-${formatCurrency(item.total)}
+${money(item.total)}
 
 </td>
+
+
 
 
 
 <td>
 
 <button
-onclick="removeQuoteItem(${index})">
+
+onclick="removeQuotationItem(${index})">
 
 ❌
 
 </button>
+
 
 </td>
 
@@ -894,15 +1333,12 @@ onclick="removeQuoteItem(${index})">
 </tr>
 
 
-`;
-
-
-}).join("");
+`
+).join("");
 
 
 
 calculateQuotation();
-
 
 
 }
@@ -911,62 +1347,87 @@ calculateQuotation();
 
 
 
-function updateQuoteProduct(index,id){
+
+
+
+function selectQuotationProduct(index,id){
+
 
 
 const product =
 productsCache.find(
-p=>p.id==id
+p=>String(p.id)===String(id)
 );
+
 
 
 if(product){
 
-quotationItems[index].product_id=id;
+
+quotationItems[index].product_id =
+product.id;
+
+
+quotationItems[index].description =
+product.name;
+
 
 quotationItems[index].unit_price =
 Number(
 product.selling_price || 0
 );
 
-quotationItems[index].description =
-product.name;
-
-}
-
-
-renderQuotationRows();
-
 
 }
 
 
 
+drawQuotationRows();
 
-function updateQuoteField(index,field,value){
 
 
-quotationItems[index][field]
-=
-Number(value||0);
+}
+
+
+
+
+
+
+
+function updateQuotationItem(index,field,value){
+
+
+quotationItems[index][field] =
+Number(value || 0);
+
 
 
 calculateQuotation();
 
 
+
 }
 
 
 
 
 
-function removeQuoteItem(index){
+
+
+function removeQuotationItem(index){
+
 
 quotationItems.splice(index,1);
 
-renderQuotationRows();
+
+drawQuotationRows();
+
 
 }
+
+
+
+
 
 
 
@@ -985,26 +1446,26 @@ let gst=0;
 quotationItems.forEach(item=>{
 
 
-let lineSubtotal =
+const line =
 item.quantity *
 item.unit_price;
 
 
 
 item.discount =
-lineSubtotal *
+line *
 item.discount_percent /
 100;
 
 
 
-let taxable =
-lineSubtotal -
+const taxable =
+line -
 item.discount;
 
 
 
-let gstAmount =
+const gstAmount =
 taxable *
 item.gst_percent /
 100;
@@ -1017,67 +1478,91 @@ gstAmount;
 
 
 
-subtotal += lineSubtotal;
+subtotal += line;
 
 discount += item.discount;
 
 gst += gstAmount;
 
 
-
 });
 
 
 
-let taxable =
+const taxableAmount =
 subtotal-discount;
 
 
-
-let grand =
-taxable+gst;
-
-
-
-document.getElementById("quoteSubtotal")
-.innerHTML=formatCurrency(subtotal);
+const grand =
+taxableAmount+gst;
 
 
 
-document.getElementById("quoteDiscount")
-.innerHTML=formatCurrency(discount);
+document.getElementById("subtotal").innerHTML =
+money(subtotal);
 
 
 
-document.getElementById("quoteTaxable")
-.innerHTML=formatCurrency(taxable);
+document.getElementById("discountTotal").innerHTML =
+money(discount);
 
 
 
-document.getElementById("quoteGST")
-.innerHTML=formatCurrency(gst);
+document.getElementById("taxable").innerHTML =
+money(taxableAmount);
 
 
 
-document.getElementById("quoteGrandTotal")
-.innerHTML=formatCurrency(grand);
+document.getElementById("gstTotal").innerHTML =
+money(gst);
 
 
 
-quotationItems.forEach((x,i)=>{
-
-const row=
-document.querySelectorAll("#quoteItemsBody tr")[i];
+document.getElementById("grandTotal").innerHTML =
+money(grand);
 
 
-if(row){
 
-row.children[4].innerHTML=
-formatCurrency(x.discount);
+drawQuotationRowsOnly();
 
 
-row.children[6].innerHTML=
-formatCurrency(x.total);
+
+}
+
+
+
+
+
+
+function drawQuotationRowsOnly(){
+
+
+const rows =
+document.querySelectorAll(
+"#quotationItems tr"
+);
+
+
+
+rows.forEach((row,index)=>{
+
+
+if(quotationItems[index]){
+
+
+row.children[4].innerHTML =
+money(
+quotationItems[index].discount
+);
+
+
+
+row.children[6].innerHTML =
+money(
+quotationItems[index].total
+);
+
+
 
 }
 
@@ -1086,6 +1571,10 @@ formatCurrency(x.total);
 
 
 }
+
+
+
+
 
 
 
@@ -1094,13 +1583,20 @@ formatCurrency(x.total);
 async function saveQuotation(){
 
 
+
 const customer =
-document.getElementById("quoteCustomer").value;
+document.getElementById(
+"quotationCustomer"
+).value;
+
 
 
 if(!customer){
 
-notify("Select customer","error");
+showToast(
+"Please select customer",
+"error"
+);
 
 return;
 
@@ -1108,35 +1604,47 @@ return;
 
 
 
-let subtotal=0;
-let discount=0;
-let gst=0;
-
-
-quotationItems.forEach(i=>{
-
-subtotal += i.quantity*i.unit_price;
-
-discount += i.discount;
-
-gst +=
-(i.quantity*i.unit_price-i.discount)
-*
-i.gst_percent/100;
-
-});
+calculateQuotation();
 
 
 
-let grand =
-subtotal-discount+gst;
+const subtotal =
+Number(
+document.getElementById("subtotal")
+.innerText.replace(/[₹,]/g,"")
+);
 
 
 
-const quotation = await apiPost(
+const discount =
+Number(
+document.getElementById("discountTotal")
+.innerText.replace(/[₹,]/g,"")
+);
+
+
+
+const gst =
+Number(
+document.getElementById("gstTotal")
+.innerText.replace(/[₹,]/g,"")
+);
+
+
+
+const grand =
+Number(
+document.getElementById("grandTotal")
+.innerText.replace(/[₹,]/g,"")
+);
+
+
+
+
+const quotation =
+await apiPost(
 "/quotations",
 {
-
 
 quotation_number:
 "QTN-"+Date.now(),
@@ -1147,11 +1655,11 @@ Number(customer),
 
 
 quotation_date:
-document.getElementById("quoteDate").value,
+document.getElementById("quotationDate").value,
 
 
 valid_until:
-document.getElementById("quoteValid").value,
+document.getElementById("quotationValid").value,
 
 
 status:
@@ -1160,20 +1668,16 @@ status:
 
 subtotal,
 
-
 discount,
 
-
-gst_amount:
-gst,
+gst_amount:gst,
 
 
-grand_total:
-grand,
+grand_total:grand,
 
 
 notes:
-document.getElementById("quoteNotes").value
+document.getElementById("quotationNotes").value
 
 
 });
@@ -1202,9 +1706,9 @@ quantity:item.quantity,
 
 unit_price:item.unit_price,
 
-discount:item.discount,
-
 discount_percent:item.discount_percent,
+
+discount:item.discount,
 
 gst_percent:item.gst_percent,
 
@@ -1218,16 +1722,19 @@ total:item.total
 
 
 
-notify("Quotation created successfully");
+showToast(
+"Quotation created successfully"
+);
+
 
 
 showPage("quotations");
 
 
 }
-/* ==========================================
-        PAGE ROUTING
-========================================== */
+/* =====================================================
+   PAGE ROUTING
+===================================================== */
 
 
 async function showPage(page){
@@ -1237,26 +1744,31 @@ async function showPage(page){
         page="dashboard";
 
 
+
     currentPage=page;
 
 
-    updatePageHeader(page);
+    updateHeader(page);
+
 
 
     document
     .querySelectorAll("[data-page]")
     .forEach(btn=>{
 
+
         btn.classList.toggle(
             "active",
             btn.dataset.page===page
         );
 
+
     });
 
 
 
-    const renderer={
+
+    const pages={
 
 
         dashboard:
@@ -1279,13 +1791,15 @@ async function showPage(page){
         renderQuotations
 
 
-    }[page];
+    };
 
 
 
-    if(renderer)
-        return renderer();
+    if(pages[page]){
 
+        return pages[page]();
+
+    }
 
 
 }
@@ -1294,34 +1808,173 @@ async function showPage(page){
 
 
 
-function pageFromNavigation(element){
+/* =====================================================
+   CSS
+===================================================== */
 
 
-    if(element.dataset.page)
-        return element.dataset.page;
+function addStyles(){
 
-
-    return null;
-
-}
-
-
-
-
-
-
-/* ==========================================
-        EXTRA CSS
-========================================== */
-
-
-function addQuotationStyles(){
 
 
 const style=document.createElement("style");
 
 
+
 style.innerHTML=`
+
+
+.stats-grid{
+
+display:grid;
+grid-template-columns:
+repeat(4,1fr);
+gap:20px;
+margin-bottom:25px;
+
+}
+
+
+
+.stat-card{
+
+background:#fff;
+padding:25px;
+border-radius:15px;
+box-shadow:
+0 5px 20px rgba(0,0,0,.08);
+
+}
+
+
+
+.stat-card h3{
+
+margin:0;
+color:#64748b;
+font-size:15px;
+
+}
+
+
+
+.stat-card strong{
+
+display:block;
+font-size:28px;
+margin-top:10px;
+color:#1e293b;
+
+}
+
+
+
+
+
+.panel{
+
+background:#fff;
+padding:25px;
+border-radius:15px;
+box-shadow:
+0 5px 20px rgba(0,0,0,.08);
+
+}
+
+
+
+
+
+.panel-header{
+
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+
+}
+
+
+
+
+
+.crm-table{
+
+width:100%;
+border-collapse:collapse;
+
+}
+
+
+
+.crm-table th{
+
+background:#2563eb;
+color:white;
+padding:12px;
+text-align:left;
+
+}
+
+
+
+.crm-table td{
+
+padding:12px;
+border-bottom:
+1px solid #e5e7eb;
+
+}
+
+
+
+
+
+.quotation-box{
+
+display:flex;
+flex-direction:column;
+gap:20px;
+
+}
+
+
+
+.quotation-box label{
+
+font-weight:600;
+display:flex;
+flex-direction:column;
+gap:8px;
+
+}
+
+
+
+.quotation-box input,
+.quotation-box select,
+.quotation-box textarea{
+
+
+padding:10px;
+border:
+1px solid #d1d5db;
+border-radius:8px;
+
+}
+
+
+
+.quotation-details{
+
+display:grid;
+grid-template-columns:
+repeat(2,1fr);
+gap:20px;
+
+}
+
+
 
 
 .quote-table{
@@ -1336,10 +1989,9 @@ margin-top:20px;
 
 .quote-table th{
 
-background:#2563eb;
+background:#1d4ed8;
 color:white;
 padding:12px;
-text-align:left;
 
 }
 
@@ -1347,8 +1999,9 @@ text-align:left;
 
 .quote-table td{
 
-border-bottom:1px solid #ddd;
 padding:10px;
+border-bottom:
+1px solid #e5e7eb;
 
 }
 
@@ -1359,18 +2012,17 @@ padding:10px;
 
 width:100%;
 padding:8px;
-border:1px solid #ddd;
-border-radius:6px;
 
 }
 
 
 
-.quote-summary{
 
-margin-left:auto;
+.quotation-summary{
+
 margin-top:25px;
-width:350px;
+margin-left:auto;
+max-width:350px;
 background:#f8fafc;
 padding:20px;
 border-radius:12px;
@@ -1379,7 +2031,7 @@ border-radius:12px;
 
 
 
-.quote-summary p{
+.quotation-summary p{
 
 display:flex;
 justify-content:space-between;
@@ -1388,68 +2040,16 @@ justify-content:space-between;
 
 
 
-.quote-summary h2{
+.quotation-summary h2{
 
-border-top:2px solid #2563eb;
+border-top:
+2px solid #2563eb;
+
 padding-top:15px;
 
 }
 
 
-
-.panel{
-
-background:white;
-border-radius:14px;
-padding:20px;
-box-shadow:
-0 5px 20px rgba(0,0,0,.08);
-
-}
-
-
-
-.panel-header{
-
-display:flex;
-justify-content:space-between;
-align-items:center;
-
-}
-
-
-
-.form-grid{
-
-display:grid;
-grid-template-columns:
-repeat(3,1fr);
-gap:20px;
-
-}
-
-
-
-.form-grid label{
-
-display:flex;
-flex-direction:column;
-gap:8px;
-font-weight:600;
-
-}
-
-
-
-.form-grid input,
-.form-grid select,
-.form-grid textarea{
-
-padding:10px;
-border:1px solid #ddd;
-border-radius:8px;
-
-}
 
 
 
@@ -1474,18 +2074,22 @@ background:#1d4ed8;
 
 
 
+
+
 .crm-toast{
 
 position:fixed;
-right:20px;
-bottom:20px;
+right:25px;
+bottom:25px;
 padding:15px 20px;
 background:#2563eb;
 color:white;
-border-radius:8px;
+border-radius:10px;
 z-index:9999;
+display:block;
 
 }
+
 
 
 .crm-toast.error{
@@ -1496,45 +2100,34 @@ background:#dc2626;
 
 
 
-.stats{
-
-display:grid;
-grid-template-columns:
-repeat(4,1fr);
-gap:20px;
-
-}
-
-
-
-.stat-card{
-
-background:white;
-padding:20px;
-border-radius:12px;
-box-shadow:
-0 4px 15px rgba(0,0,0,.08);
-
-}
-
 
 
 @media(max-width:900px){
 
 
-.form-grid,
-.stats{
+.stats-grid{
 
 grid-template-columns:1fr;
 
 }
 
 
-.quote-summary{
 
-width:auto;
+.quotation-details{
+
+grid-template-columns:1fr;
 
 }
+
+
+
+.quote-table{
+
+display:block;
+overflow-x:auto;
+
+}
+
 
 
 }
@@ -1542,6 +2135,7 @@ width:auto;
 
 
 `;
+
 
 
 document.head.appendChild(style);
@@ -1554,27 +2148,35 @@ document.head.appendChild(style);
 
 
 
-/* ==========================================
-        INITIALIZE
-========================================== */
+/* =====================================================
+   INITIALIZE
+===================================================== */
 
 
 function initialiseApp(){
 
 
-addQuotationStyles();
+
+addStyles();
 
 
 
 document
 .querySelectorAll("[data-page]")
-.forEach(btn=>{
+.forEach(button=>{
 
 
-btn.addEventListener(
+button.addEventListener(
 "click",
-()=>showPage(btn.dataset.page)
+()=>{
+
+showPage(
+button.dataset.page
 );
+
+}
+);
+
 
 
 });
@@ -1584,13 +2186,14 @@ btn.addEventListener(
 showPage("dashboard");
 
 
+
 }
 
 
 
-document
-.addEventListener(
+
+
+document.addEventListener(
 "DOMContentLoaded",
 initialiseApp
 );
-}
