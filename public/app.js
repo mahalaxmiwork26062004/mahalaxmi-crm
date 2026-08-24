@@ -1,14 +1,9 @@
 /* =====================================================
    MAHALAXMI ENTERPRISE CRM
-   Professional Quotation Builder Edition
+   Stable CRM + Professional Quotation Module
 ===================================================== */
 
 "use strict";
-
-
-/* =====================================================
-   CONFIG
-===================================================== */
 
 
 const API_BASE = "/api";
@@ -23,62 +18,55 @@ let quotationsCache = [];
 
 
 
-
-
-/* =====================================================
-   PAGE CONFIG
-===================================================== */
-
-
 const PAGE_INFO = {
 
 
-    dashboard:{
-        title:"Dashboard",
-        subtitle:"Overview of your business activity"
-    },
+dashboard:{
+    title:"Dashboard",
+    subtitle:"Overview of your business activity"
+},
 
 
-    customers:{
-        title:"Customers",
-        subtitle:"Manage your customers"
-    },
+customers:{
+    title:"Customers",
+    subtitle:"Manage customers"
+},
 
 
-    enquiries:{
-        title:"Enquiries",
-        subtitle:"Track customer enquiries"
-    },
+products:{
+    title:"Products",
+    subtitle:"Manage products"
+},
 
 
-    products:{
-        title:"Products",
-        subtitle:"Manage products"
-    },
+enquiries:{
+    title:"Enquiries",
+    subtitle:"Manage enquiries"
+},
 
 
-    quotations:{
-        title:"Quotations",
-        subtitle:"Create professional quotations"
-    },
+quotations:{
+    title:"Quotations",
+    subtitle:"Create professional quotations"
+},
 
 
-    orders:{
-        title:"Orders",
-        subtitle:"Manage orders"
-    },
+orders:{
+    title:"Orders",
+    subtitle:"Manage orders"
+},
 
 
-    followups:{
-        title:"Follow-ups",
-        subtitle:"Customer follow-up activities"
-    },
+followups:{
+    title:"Follow-ups",
+    subtitle:"Customer follow-ups"
+},
 
 
-    payments:{
-        title:"Payments",
-        subtitle:"Track payments"
-    }
+payments:{
+    title:"Payments",
+    subtitle:"Payment tracking"
+}
 
 
 };
@@ -87,25 +75,22 @@ const PAGE_INFO = {
 
 
 
-/* =====================================================
-   API FUNCTIONS
-===================================================== */
+/* ===============================
+        API
+================================ */
 
 
-async function apiRequest(url, options={}){
+async function apiRequest(url,options={}){
 
 
     const response =
-    await fetch(API_BASE + url, {
-
+    await fetch(API_BASE+url,{
 
         headers:{
             "Content-Type":"application/json"
         },
 
-
         ...options
-
 
     });
 
@@ -123,7 +108,7 @@ async function apiRequest(url, options={}){
     catch(e){
 
         throw new Error(
-            "Server response error"
+            "Invalid server response"
         );
 
     }
@@ -142,14 +127,13 @@ async function apiRequest(url, options={}){
 
     return data;
 
-
 }
 
 
 
 
 
-async function apiGet(url){
+function apiGet(url){
 
     return apiRequest(url);
 
@@ -159,8 +143,7 @@ async function apiGet(url){
 
 
 
-async function apiPost(url,data){
-
+function apiPost(url,data){
 
     return apiRequest(url,{
 
@@ -171,15 +154,13 @@ async function apiPost(url,data){
 
     });
 
-
 }
 
 
 
 
 
-async function apiPut(url,data){
-
+function apiPut(url,data){
 
     return apiRequest(url,{
 
@@ -190,15 +171,13 @@ async function apiPut(url,data){
 
     });
 
-
 }
 
 
 
 
 
-async function apiDelete(url){
-
+function apiDelete(url){
 
     return apiRequest(url,{
 
@@ -206,16 +185,16 @@ async function apiDelete(url){
 
     });
 
-
 }
 
 
 
 
 
-/* =====================================================
-   HELPERS
-===================================================== */
+
+/* ===============================
+        HELPERS
+================================ */
 
 
 function getContent(){
@@ -235,7 +214,8 @@ function getRows(result){
         return result;
 
 
-    if(result && Array.isArray(result.data))
+    if(result?.data &&
+       Array.isArray(result.data))
         return result.data;
 
 
@@ -249,21 +229,15 @@ function getRows(result){
 
 function money(value){
 
-
-    return Number(value || 0)
+    return Number(value||0)
     .toLocaleString(
         "en-IN",
         {
-
             style:"currency",
-
             currency:"INR",
-
             minimumFractionDigits:2
-
         }
     );
-
 
 }
 
@@ -274,7 +248,8 @@ function money(value){
 function escapeHtml(value){
 
 
-    if(value===null || value===undefined)
+    if(value===null ||
+       value===undefined)
         return "";
 
 
@@ -283,26 +258,6 @@ function escapeHtml(value){
     .replace(/</g,"&lt;")
     .replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;");
-
-
-}
-
-
-
-
-
-function formatDate(value){
-
-
-    if(!value)
-        return "-";
-
-
-    return new Date(value)
-    .toLocaleDateString(
-        "en-IN"
-    );
-
 
 }
 
@@ -322,7 +277,6 @@ function showToast(message,type="success"){
 
     if(!toast){
 
-
         toast =
         document.createElement(
             "div"
@@ -333,10 +287,7 @@ function showToast(message,type="success"){
         "crmToast";
 
 
-        document.body.appendChild(
-            toast
-        );
-
+        document.body.appendChild(toast);
 
     }
 
@@ -346,7 +297,6 @@ function showToast(message,type="success"){
     "crm-toast "+type;
 
 
-
     toast.innerHTML =
     message;
 
@@ -354,11 +304,9 @@ function showToast(message,type="success"){
 
     setTimeout(()=>{
 
-        toast.className =
-        "crm-toast";
+        toast.className="crm-toast";
 
     },3000);
-
 
 
 }
@@ -367,17 +315,11 @@ function showToast(message,type="success"){
 
 
 
-/* =====================================================
-   HEADER UPDATE
-===================================================== */
-
-
 function updateHeader(page){
 
 
     const info =
     PAGE_INFO[page];
-
 
 
     if(!info)
@@ -404,11 +346,6 @@ function updateHeader(page){
 
 
 
-/* =====================================================
-   LOADING SCREEN
-===================================================== */
-
-
 function showLoading(){
 
 
@@ -424,10 +361,8 @@ function showLoading(){
 
     `;
 
-
-}
-/* =====================================================
-   DASHBOARD
+}/* =====================================================
+        DASHBOARD
 ===================================================== */
 
 
@@ -442,9 +377,9 @@ async function renderDashboard(){
 
     <div class="panel">
 
-        <h3>
-        Loading Dashboard...
-        </h3>
+    <h3>
+    Loading Dashboard...
+    </h3>
 
     </div>
 
@@ -455,60 +390,57 @@ async function renderDashboard(){
     try{
 
 
-        const result =
-        await Promise.all([
+        const [
+            customers,
+            products,
+            enquiries,
+            quotations
+        ] = await Promise.all([
 
             apiGet("/customers"),
-
             apiGet("/products"),
-
             apiGet("/enquiries"),
-
             apiGet("/quotations")
 
         ]);
 
 
 
-        const customers =
-        getRows(result[0]);
+        const customerList =
+        getRows(customers);
 
 
-        const products =
-        getRows(result[1]);
+        const productList =
+        getRows(products);
 
 
-        const enquiries =
-        getRows(result[2]);
+        const enquiryList =
+        getRows(enquiries);
 
 
-        const quotations =
-        getRows(result[3]);
+        const quotationList =
+        getRows(quotations);
 
 
 
         customersCache =
-        customers;
+        customerList;
 
 
         productsCache =
-        products;
-
-
-        quotationsCache =
-        quotations;
+        productList;
 
 
 
-        const totalQuotation =
-        quotations.reduce(
-            (sum,item)=>
-            sum+
-            Number(
-                item.grand_total || 0
-            ),
-            0
-        );
+        let quotationValue = 0;
+
+
+        quotationList.forEach(q=>{
+
+            quotationValue +=
+            Number(q.grand_total || 0);
+
+        });
 
 
 
@@ -519,89 +451,81 @@ async function renderDashboard(){
         <div class="stats-grid">
 
 
-            <div class="stat-card">
+        <div class="stat-card">
 
-                <h3>
-                Customers
-                </h3>
+        <h3>
+        Customers
+        </h3>
 
-                <strong>
-                ${customers.length}
-                </strong>
-
-            </div>
-
-
-
-
-            <div class="stat-card">
-
-                <h3>
-                Products
-                </h3>
-
-                <strong>
-                ${products.length}
-                </strong>
-
-            </div>
-
-
-
-
-            <div class="stat-card">
-
-                <h3>
-                Enquiries
-                </h3>
-
-                <strong>
-                ${enquiries.length}
-                </strong>
-
-            </div>
-
-
-
-
-            <div class="stat-card">
-
-                <h3>
-                Quotation Value
-                </h3>
-
-                <strong>
-                ${money(totalQuotation)}
-                </strong>
-
-            </div>
-
+        <strong>
+        ${customerList.length}
+        </strong>
 
         </div>
 
 
-        `;
 
+        <div class="stat-card">
+
+        <h3>
+        Products
+        </h3>
+
+        <strong>
+        ${productList.length}
+        </strong>
+
+        </div>
+
+
+
+        <div class="stat-card">
+
+        <h3>
+        Enquiries
+        </h3>
+
+        <strong>
+        ${enquiryList.length}
+        </strong>
+
+        </div>
+
+
+
+        <div class="stat-card">
+
+        <h3>
+        Quotation Value
+        </h3>
+
+        <strong>
+        ${money(quotationValue)}
+        </strong>
+
+        </div>
+
+
+        </div>
+
+        `;
 
 
     }
     catch(error){
 
 
-        console.error(error);
-
-
         content.innerHTML = `
 
         <div class="panel">
 
-            <h3>
-            Dashboard Error
-            </h3>
+        <h3>
+        Dashboard Error
+        </h3>
 
-            <p>
-            ${escapeHtml(error.message)}
-            </p>
+        <p>
+        ${escapeHtml(error.message)}
+        </p>
 
         </div>
 
@@ -619,8 +543,9 @@ async function renderDashboard(){
 
 
 
+
 /* =====================================================
-   CUSTOMERS
+        CUSTOMERS
 ===================================================== */
 
 
@@ -631,19 +556,53 @@ async function renderCustomers(){
 
 
 
-    const result =
-    await apiGet("/customers");
-
-
-
     customersCache =
-    getRows(result);
+    getRows(
+        await apiGet("/customers")
+    );
 
+
+
+    getContent().innerHTML = `
+
+
+    <div class="panel">
+
+
+    <div class="panel-header">
+
+    <h2>
+    Customers
+    </h2>
+
+
+    <button
+    class="button-primary"
+    onclick="openAddForm('customers')">
+
+    + Add Customer
+
+    </button>
+
+
+    </div>
+
+
+
+    <div id="customerTable">
+
+    </div>
+
+
+
+    </div>
+
+    `;
 
 
     renderTable(
         customersCache,
-        "Customers"
+        "customerTable"
     );
 
 
@@ -656,7 +615,7 @@ async function renderCustomers(){
 
 
 /* =====================================================
-   PRODUCTS
+        PRODUCTS
 ===================================================== */
 
 
@@ -667,19 +626,54 @@ async function renderProducts(){
 
 
 
-    const result =
-    await apiGet("/products");
-
-
-
     productsCache =
-    getRows(result);
+    getRows(
+        await apiGet("/products")
+    );
 
+
+
+    getContent().innerHTML = `
+
+
+    <div class="panel">
+
+
+    <div class="panel-header">
+
+    <h2>
+    Products
+    </h2>
+
+
+    <button
+    class="button-primary"
+    onclick="openAddForm('products')">
+
+    + Add Product
+
+    </button>
+
+
+    </div>
+
+
+
+    <div id="productTable">
+
+    </div>
+
+
+
+    </div>
+
+
+    `;
 
 
     renderTable(
         productsCache,
-        "Products"
+        "productTable"
     );
 
 
@@ -692,8 +686,9 @@ async function renderProducts(){
 
 
 
+
 /* =====================================================
-   ENQUIRIES
+        ENQUIRIES
 ===================================================== */
 
 
@@ -704,19 +699,57 @@ async function renderEnquiries(){
 
 
 
-    const result =
-    await apiGet("/enquiries");
+    const enquiries =
+    getRows(
+        await apiGet("/enquiries")
+    );
 
 
 
-    const data =
-    getRows(result);
+    getContent().innerHTML = `
+
+
+    <div class="panel">
+
+
+    <div class="panel-header">
+
+
+    <h2>
+    Enquiries
+    </h2>
+
+
+
+    <button
+    class="button-primary"
+    onclick="openAddForm('enquiries')">
+
+    + Add Enquiry
+
+    </button>
+
+
+    </div>
+
+
+
+    <div id="enquiryTable">
+
+    </div>
+
+
+
+    </div>
+
+
+    `;
 
 
 
     renderTable(
-        data,
-        "Enquiries"
+        enquiries,
+        "enquiryTable"
     );
 
 
@@ -731,34 +764,31 @@ async function renderEnquiries(){
 
 
 /* =====================================================
-   GENERIC TABLE
+        TABLE RENDERER
 ===================================================== */
 
 
-function renderTable(data,title){
+function renderTable(data,target){
+
+
+    const box =
+    document.getElementById(target);
+
+
+
+    if(!box)
+        return;
 
 
 
     if(!data.length){
 
 
-        getContent().innerHTML = `
-
-
-        <div class="panel">
-
-            <h3>
-            No ${title} found
-            </h3>
-
-        </div>
-
-
-        `;
+        box.innerHTML =
+        "<p>No records found</p>";
 
 
         return;
-
 
     }
 
@@ -767,30 +797,12 @@ function renderTable(data,title){
 
     const columns =
     Object.keys(data[0])
-    .slice(0,7);
+    .slice(0,6);
 
 
 
 
-
-    getContent().innerHTML = `
-
-
-
-    <div class="panel">
-
-
-    <div class="panel-header">
-
-        <h2>
-        ${title}
-        </h2>
-
-
-    </div>
-
-
-
+    box.innerHTML = `
 
 
     <table class="crm-table">
@@ -801,10 +813,10 @@ function renderTable(data,title){
     <tr>
 
     ${
-        columns.map(col=>`
+        columns.map(c=>`
 
         <th>
-        ${col.replace("_"," ").toUpperCase()}
+        ${c.replace("_"," ").toUpperCase()}
         </th>
 
         `).join("")
@@ -813,8 +825,6 @@ function renderTable(data,title){
     </tr>
 
     </thead>
-
-
 
 
 
@@ -828,10 +838,10 @@ function renderTable(data,title){
 
 
         ${
-            columns.map(col=>`
+            columns.map(c=>`
 
             <td>
-            ${escapeHtml(row[col])}
+            ${escapeHtml(row[c])}
             </td>
 
             `).join("")
@@ -852,15 +862,186 @@ function renderTable(data,title){
     </table>
 
 
-    </div>
-
-
     `;
 
 
 }
+
+
+
+
+
+
+
+
 /* =====================================================
-   PROFESSIONAL QUOTATION BUILDER
+        ADD FORM
+===================================================== */
+
+
+function openAddForm(type){
+
+
+let fields = [];
+
+
+
+if(type==="customers"){
+
+
+fields=[
+
+["company_name","Company Name"],
+
+["contact_person","Contact Person"],
+
+["phone","Phone"],
+
+["email","Email"]
+
+];
+
+
+}
+
+
+
+
+if(type==="products"){
+
+
+fields=[
+
+["name","Product Name"],
+
+["description","Description"],
+
+["selling_price","Selling Price"]
+
+];
+
+
+}
+
+
+
+
+if(type==="enquiries"){
+
+
+fields=[
+
+["customer_name","Customer Name"],
+
+["phone","Phone"],
+
+["message","Message"]
+
+];
+
+
+}
+
+
+
+
+const html = `
+
+
+<div class="panel">
+
+
+<h2>
+Add ${type}
+</h2>
+
+
+${
+
+fields.map(f=>`
+
+<label>
+
+${f[1]}
+
+<input id="add_${f[0]}">
+
+</label>
+
+`).join("")
+
+}
+
+
+
+<button
+
+class="button-primary"
+
+onclick="saveAdd('${type}')">
+
+Save
+
+</button>
+
+
+</div>
+
+
+`;
+
+
+
+getContent().innerHTML = html;
+
+
+}
+
+
+
+
+
+
+
+async function saveAdd(type){
+
+
+const body={};
+
+
+
+document
+.querySelectorAll("[id^='add_']")
+.forEach(input=>{
+
+
+body[
+input.id.replace("add_","")
+]=input.value;
+
+
+});
+
+
+
+await apiPost(
+"/"+type,
+body
+);
+
+
+
+showToast(
+"Saved successfully"
+);
+
+
+
+showPage(type);
+
+
+}/* =====================================================
+        PROFESSIONAL QUOTATION BUILDER
 ===================================================== */
 
 
@@ -902,18 +1083,18 @@ async function renderQuotations(){
 Create Quotation
 </h2>
 
+
 </div>
 
 
 
-<div class="quotation-box">
-
-
-
 <label>
+
 Customer
 
+
 <select id="quotationCustomer">
+
 
 <option value="">
 Select Customer
@@ -921,14 +1102,15 @@ Select Customer
 
 
 ${
-customersCache.map(customer=>`
+customersCache.map(c=>`
 
-<option value="${customer.id}">
+<option value="${c.id}">
 
 ${escapeHtml(
-customer.company_name ||
-customer.contact_person ||
-customer.name
+c.company_name ||
+c.contact_person ||
+c.name ||
+"Customer"
 )}
 
 </option>
@@ -939,7 +1121,9 @@ customer.name
 
 </select>
 
+
 </label>
+
 
 
 
@@ -960,6 +1144,7 @@ value="${new Date().toISOString().slice(0,10)}">
 
 
 
+
 <label>
 
 Valid Until
@@ -977,8 +1162,9 @@ id="quotationValid">
 
 
 
+
 <h3>
-Products
+Items
 </h3>
 
 
@@ -1008,14 +1194,15 @@ Products
 
 </tr>
 
-
 </thead>
 
 
 
 <tbody id="quotationItems">
 
+
 </tbody>
+
 
 
 </table>
@@ -1023,7 +1210,9 @@ Products
 
 
 <button
+
 class="button-primary"
+
 onclick="addQuotationRow()">
 
 + Add Item
@@ -1046,6 +1235,7 @@ Subtotal
 </span>
 
 </p>
+
 
 
 
@@ -1095,11 +1285,12 @@ Grand Total
 ₹0.00
 </span>
 
+
 </h2>
 
 
-
 </div>
+
 
 
 
@@ -1115,16 +1306,15 @@ Notes
 
 
 <button
+
 class="button-primary"
+
 onclick="saveQuotation()">
 
 Save Quotation
 
 </button>
 
-
-
-</div>
 
 
 </div>
@@ -1138,6 +1328,7 @@ addQuotationRow();
 
 
 }
+
 
 
 
@@ -1163,8 +1354,7 @@ total:0
 });
 
 
-
-drawQuotationRows();
+renderQuotationRows();
 
 
 }
@@ -1175,7 +1365,9 @@ drawQuotationRows();
 
 
 
-function drawQuotationRows(){
+
+function renderQuotationRows(){
+
 
 
 const tbody =
@@ -1185,8 +1377,15 @@ document.getElementById(
 
 
 
-tbody.innerHTML = quotationItems.map(
-(item,index)=>`
+if(!tbody)
+return;
+
+
+
+
+tbody.innerHTML =
+
+quotationItems.map((item,index)=>`
 
 
 <tr>
@@ -1196,16 +1395,32 @@ tbody.innerHTML = quotationItems.map(
 
 
 <select
+
 onchange="selectQuotationProduct(${index},this.value)">
 
 
+
 <option value="">
-Select
+Select Product
 </option>
 
 
+
 ${
-productsCache.map(product=>`
+productsCache.map(product=>{
+
+
+const productName =
+
+product.name ||
+product.product_name ||
+product.model ||
+product.title ||
+"Product";
+
+
+
+return `
 
 <option
 
@@ -1215,15 +1430,21 @@ ${item.product_id==product.id?"selected":""}
 
 >
 
-${escapeHtml(product.name)}
+${escapeHtml(productName)}
 
 </option>
 
-`).join("")
+
+`;
+
+
+}).join("")
 }
 
 
+
 </select>
+
 
 
 </td>
@@ -1241,8 +1462,8 @@ value="${item.quantity}"
 
 oninput="updateQuotationItem(${index},'quantity',this.value)">
 
-</td>
 
+</td>
 
 
 
@@ -1257,8 +1478,8 @@ value="${item.unit_price}"
 
 oninput="updateQuotationItem(${index},'unit_price',this.value)">
 
-</td>
 
+</td>
 
 
 
@@ -1273,8 +1494,8 @@ value="${item.discount_percent}"
 
 oninput="updateQuotationItem(${index},'discount_percent',this.value)">
 
-</td>
 
+</td>
 
 
 
@@ -1284,7 +1505,6 @@ oninput="updateQuotationItem(${index},'discount_percent',this.value)">
 ${money(item.discount)}
 
 </td>
-
 
 
 
@@ -1299,8 +1519,8 @@ value="${item.gst_percent}"
 
 oninput="updateQuotationItem(${index},'gst_percent',this.value)">
 
-</td>
 
+</td>
 
 
 
@@ -1310,7 +1530,6 @@ oninput="updateQuotationItem(${index},'gst_percent',this.value)">
 ${money(item.total)}
 
 </td>
-
 
 
 
@@ -1329,12 +1548,10 @@ onclick="removeQuotationItem(${index})">
 </td>
 
 
-
 </tr>
 
 
-`
-).join("");
+`).join("");
 
 
 
@@ -1353,8 +1570,8 @@ calculateQuotation();
 function selectQuotationProduct(index,id){
 
 
-
 const product =
+
 productsCache.find(
 p=>String(p.id)===String(id)
 );
@@ -1368,25 +1585,35 @@ quotationItems[index].product_id =
 product.id;
 
 
+
 quotationItems[index].description =
-product.name;
+
+product.name ||
+product.product_name ||
+product.model ||
+product.title ||
+"Product";
+
 
 
 quotationItems[index].unit_price =
+
 Number(
-product.selling_price || 0
+product.selling_price ||
+product.price ||
+0
 );
 
 
-}
-
-
-
-drawQuotationRows();
-
-
 
 }
+
+
+renderQuotationRows();
+
+
+}
+
 
 
 
@@ -1398,12 +1625,10 @@ function updateQuotationItem(index,field,value){
 
 
 quotationItems[index][field] =
-Number(value || 0);
-
+Number(value||0);
 
 
 calculateQuotation();
-
 
 
 }
@@ -1420,7 +1645,7 @@ function removeQuotationItem(index){
 quotationItems.splice(index,1);
 
 
-drawQuotationRows();
+renderQuotationRows();
 
 
 }
@@ -1435,6 +1660,7 @@ drawQuotationRows();
 function calculateQuotation(){
 
 
+
 let subtotal=0;
 
 let discount=0;
@@ -1446,26 +1672,30 @@ let gst=0;
 quotationItems.forEach(item=>{
 
 
-const line =
+let lineTotal =
+
 item.quantity *
 item.unit_price;
 
 
 
 item.discount =
-line *
+
+lineTotal *
 item.discount_percent /
 100;
 
 
 
-const taxable =
-line -
+let taxable =
+
+lineTotal -
 item.discount;
 
 
 
-const gstAmount =
+let gstAmount =
+
 taxable *
 item.gst_percent /
 100;
@@ -1473,12 +1703,13 @@ item.gst_percent /
 
 
 item.total =
+
 taxable +
 gstAmount;
 
 
 
-subtotal += line;
+subtotal += lineTotal;
 
 discount += item.discount;
 
@@ -1489,55 +1720,53 @@ gst += gstAmount;
 
 
 
-const taxableAmount =
-subtotal-discount;
+let taxableAmount =
 
-
-const grand =
-taxableAmount+gst;
+subtotal -
+discount;
 
 
 
-document.getElementById("subtotal").innerHTML =
+let grand =
+
+taxableAmount +
+gst;
+
+
+
+
+document.getElementById("subtotal")
+.innerHTML =
 money(subtotal);
 
 
 
-document.getElementById("discountTotal").innerHTML =
+document.getElementById("discountTotal")
+.innerHTML =
 money(discount);
 
 
 
-document.getElementById("taxable").innerHTML =
+document.getElementById("taxable")
+.innerHTML =
 money(taxableAmount);
 
 
 
-document.getElementById("gstTotal").innerHTML =
+document.getElementById("gstTotal")
+.innerHTML =
 money(gst);
 
 
 
-document.getElementById("grandTotal").innerHTML =
+document.getElementById("grandTotal")
+.innerHTML =
 money(grand);
 
 
 
-drawQuotationRowsOnly();
-
-
-
-}
-
-
-
-
-
-
-function drawQuotationRowsOnly(){
-
-
 const rows =
+
 document.querySelectorAll(
 "#quotationItems tr"
 );
@@ -1551,6 +1780,7 @@ if(quotationItems[index]){
 
 
 row.children[4].innerHTML =
+
 money(
 quotationItems[index].discount
 );
@@ -1558,6 +1788,7 @@ quotationItems[index].discount
 
 
 row.children[6].innerHTML =
+
 money(
 quotationItems[index].total
 );
@@ -1585,6 +1816,7 @@ async function saveQuotation(){
 
 
 const customer =
+
 document.getElementById(
 "quotationCustomer"
 ).value;
@@ -1593,12 +1825,15 @@ document.getElementById(
 
 if(!customer){
 
+
 showToast(
-"Please select customer",
+"Select customer first",
 "error"
 );
 
+
 return;
+
 
 }
 
@@ -1608,85 +1843,107 @@ calculateQuotation();
 
 
 
-const subtotal =
-Number(
-document.getElementById("subtotal")
-.innerText.replace(/[₹,]/g,"")
-);
-
-
-
-const discount =
-Number(
-document.getElementById("discountTotal")
-.innerText.replace(/[₹,]/g,"")
-);
-
-
-
-const gst =
-Number(
-document.getElementById("gstTotal")
-.innerText.replace(/[₹,]/g,"")
-);
-
-
-
-const grand =
-Number(
-document.getElementById("grandTotal")
-.innerText.replace(/[₹,]/g,"")
-);
-
-
-
-
 const quotation =
+
 await apiPost(
 "/quotations",
 {
 
+
 quotation_number:
+
 "QTN-"+Date.now(),
 
 
 customer_id:
+
 Number(customer),
 
 
 quotation_date:
-document.getElementById("quotationDate").value,
+
+document.getElementById(
+"quotationDate"
+).value,
 
 
 valid_until:
-document.getElementById("quotationValid").value,
+
+document.getElementById(
+"quotationValid"
+).value,
 
 
 status:
+
 "Draft",
 
 
-subtotal,
+subtotal:
 
-discount,
+Number(
+document.getElementById("subtotal")
+.innerText.replace(/[₹,]/g,"")
+),
 
-gst_amount:gst,
+
+discount:
+
+Number(
+document.getElementById("discountTotal")
+.innerText.replace(/[₹,]/g,"")
+),
 
 
-grand_total:grand,
+gst_amount:
+
+Number(
+document.getElementById("gstTotal")
+.innerText.replace(/[₹,]/g,"")
+),
+
+
+grand_total:
+
+Number(
+document.getElementById("grandTotal")
+.innerText.replace(/[₹,]/g,"")
+),
 
 
 notes:
-document.getElementById("quotationNotes").value
+
+document.getElementById(
+"quotationNotes"
+).value
 
 
 });
 
 
-
 const quotationId =
+
 quotation.id ||
-quotation.data?.id;
+
+quotation.insertId ||
+
+quotation.data?.id ||
+
+quotation.data?.insertId;
+
+
+
+if(!quotationId){
+
+showToast(
+"Quotation ID not received",
+"error"
+);
+
+return;
+
+}
+
 
 
 
@@ -1694,7 +1951,9 @@ for(const item of quotationItems){
 
 
 await apiPost(
+
 `/quotations/${quotationId}/items`,
+
 {
 
 
@@ -1715,25 +1974,26 @@ gst_percent:item.gst_percent,
 total:item.total
 
 
-});
+}
+
+
+);
 
 
 }
+
 
 
 
 showToast(
-"Quotation created successfully"
+"Quotation saved successfully"
 );
 
 
 
-showPage("quotations");
-
-
 }
 /* =====================================================
-   PAGE ROUTING
+        PAGE ROUTING
 ===================================================== */
 
 
@@ -1745,7 +2005,8 @@ async function showPage(page){
 
 
 
-    currentPage=page;
+    currentPage = page;
+
 
 
     updateHeader(page);
@@ -1768,7 +2029,8 @@ async function showPage(page){
 
 
 
-    const pages={
+
+    const pages = {
 
 
         dashboard:
@@ -1808,8 +2070,10 @@ async function showPage(page){
 
 
 
+
+
 /* =====================================================
-   CSS
+        CSS
 ===================================================== */
 
 
@@ -1817,70 +2081,84 @@ function addStyles(){
 
 
 
-const style=document.createElement("style");
+const style =
+document.createElement("style");
 
 
 
-style.innerHTML=`
+style.innerHTML = `
 
 
 .stats-grid{
 
 display:grid;
+
 grid-template-columns:
 repeat(4,1fr);
+
 gap:20px;
+
 margin-bottom:25px;
 
 }
 
 
 
+
 .stat-card{
 
-background:#fff;
+background:white;
+
 padding:25px;
+
 border-radius:15px;
+
 box-shadow:
 0 5px 20px rgba(0,0,0,.08);
 
 }
+
 
 
 
 .stat-card h3{
 
 margin:0;
+
 color:#64748b;
+
 font-size:15px;
 
 }
 
 
 
+
 .stat-card strong{
 
 display:block;
+
 font-size:28px;
+
 margin-top:10px;
-color:#1e293b;
 
 }
-
 
 
 
 
 .panel{
 
-background:#fff;
+background:white;
+
 padding:25px;
+
 border-radius:15px;
+
 box-shadow:
 0 5px 20px rgba(0,0,0,.08);
 
 }
-
 
 
 
@@ -1888,8 +2166,11 @@ box-shadow:
 .panel-header{
 
 display:flex;
+
 justify-content:space-between;
+
 align-items:center;
+
 margin-bottom:20px;
 
 }
@@ -1897,155 +2178,38 @@ margin-bottom:20px;
 
 
 
-
 .crm-table{
 
 width:100%;
+
 border-collapse:collapse;
 
 }
+
 
 
 
 .crm-table th{
 
 background:#2563eb;
+
 color:white;
+
 padding:12px;
+
 text-align:left;
 
 }
 
 
 
+
 .crm-table td{
 
 padding:12px;
+
 border-bottom:
 1px solid #e5e7eb;
-
-}
-
-
-
-
-
-.quotation-box{
-
-display:flex;
-flex-direction:column;
-gap:20px;
-
-}
-
-
-
-.quotation-box label{
-
-font-weight:600;
-display:flex;
-flex-direction:column;
-gap:8px;
-
-}
-
-
-
-.quotation-box input,
-.quotation-box select,
-.quotation-box textarea{
-
-
-padding:10px;
-border:
-1px solid #d1d5db;
-border-radius:8px;
-
-}
-
-
-
-.quotation-details{
-
-display:grid;
-grid-template-columns:
-repeat(2,1fr);
-gap:20px;
-
-}
-
-
-
-
-.quote-table{
-
-width:100%;
-border-collapse:collapse;
-margin-top:20px;
-
-}
-
-
-
-.quote-table th{
-
-background:#1d4ed8;
-color:white;
-padding:12px;
-
-}
-
-
-
-.quote-table td{
-
-padding:10px;
-border-bottom:
-1px solid #e5e7eb;
-
-}
-
-
-
-.quote-table input,
-.quote-table select{
-
-width:100%;
-padding:8px;
-
-}
-
-
-
-
-.quotation-summary{
-
-margin-top:25px;
-margin-left:auto;
-max-width:350px;
-background:#f8fafc;
-padding:20px;
-border-radius:12px;
-
-}
-
-
-
-.quotation-summary p{
-
-display:flex;
-justify-content:space-between;
-
-}
-
-
-
-.quotation-summary h2{
-
-border-top:
-2px solid #2563eb;
-
-padding-top:15px;
 
 }
 
@@ -2056,13 +2220,19 @@ padding-top:15px;
 .button-primary{
 
 background:#2563eb;
+
 color:white;
+
 border:none;
+
 padding:12px 20px;
+
 border-radius:8px;
+
 cursor:pointer;
 
 }
+
 
 
 
@@ -2076,19 +2246,193 @@ background:#1d4ed8;
 
 
 
+.quotation-box{
+
+display:flex;
+
+flex-direction:column;
+
+gap:20px;
+
+}
+
+
+
+
+
+.quotation-box label{
+
+display:flex;
+
+flex-direction:column;
+
+gap:8px;
+
+font-weight:600;
+
+}
+
+
+
+
+
+.quotation-box input,
+.quotation-box select,
+.quotation-box textarea{
+
+
+padding:10px;
+
+border:
+
+1px solid #d1d5db;
+
+border-radius:8px;
+
+
+}
+
+
+
+
+
+.quotation-details{
+
+display:grid;
+
+grid-template-columns:
+
+repeat(2,1fr);
+
+gap:20px;
+
+}
+
+
+
+
+
+.quote-table{
+
+width:100%;
+
+border-collapse:collapse;
+
+margin-top:20px;
+
+}
+
+
+
+
+
+.quote-table th{
+
+background:#1d4ed8;
+
+color:white;
+
+padding:12px;
+
+}
+
+
+
+
+
+.quote-table td{
+
+padding:10px;
+
+border-bottom:
+
+1px solid #e5e7eb;
+
+}
+
+
+
+
+
+.quote-table input,
+.quote-table select{
+
+width:100%;
+
+padding:8px;
+
+}
+
+
+
+
+
+.quotation-summary{
+
+margin-top:25px;
+
+margin-left:auto;
+
+max-width:350px;
+
+background:#f8fafc;
+
+padding:20px;
+
+border-radius:12px;
+
+}
+
+
+
+
+
+.quotation-summary p{
+
+display:flex;
+
+justify-content:space-between;
+
+}
+
+
+
+
+
+.quotation-summary h2{
+
+border-top:
+
+2px solid #2563eb;
+
+padding-top:15px;
+
+}
+
+
+
+
+
 .crm-toast{
 
 position:fixed;
+
 right:25px;
+
 bottom:25px;
+
 padding:15px 20px;
+
 background:#2563eb;
+
 color:white;
+
 border-radius:10px;
+
 z-index:9999;
-display:block;
 
 }
+
 
 
 
@@ -2124,10 +2468,10 @@ grid-template-columns:1fr;
 .quote-table{
 
 display:block;
+
 overflow-x:auto;
 
 }
-
 
 
 }
@@ -2148,8 +2492,11 @@ document.head.appendChild(style);
 
 
 
+
+
+
 /* =====================================================
-   INITIALIZE
+        INITIALIZE
 ===================================================== */
 
 
@@ -2158,6 +2505,7 @@ function initialiseApp(){
 
 
 addStyles();
+
 
 
 
@@ -2170,16 +2518,19 @@ button.addEventListener(
 "click",
 ()=>{
 
+
 showPage(
 button.dataset.page
 );
 
+
 }
+
 );
 
 
-
 });
+
 
 
 
@@ -2188,7 +2539,6 @@ showPage("dashboard");
 
 
 }
-
 
 
 
