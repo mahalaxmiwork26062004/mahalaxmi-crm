@@ -16,6 +16,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 /* =========================================================
    DATABASE
+   Uses your existing environment variables
 ========================================================= */
 
 const db = mysql.createPool({
@@ -82,17 +83,17 @@ function normalizeTableName(tableName) {
 async function getTableColumns(tableName) {
   const [rows] = await db.query(
     `
-    SELECT
-      COLUMN_NAME,
-      DATA_TYPE,
-      IS_NULLABLE,
-      COLUMN_DEFAULT,
-      EXTRA,
-      COLUMN_KEY
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA = ?
-      AND TABLE_NAME = ?
-    ORDER BY ORDINAL_POSITION
+      SELECT
+        COLUMN_NAME,
+        DATA_TYPE,
+        IS_NULLABLE,
+        COLUMN_DEFAULT,
+        EXTRA,
+        COLUMN_KEY
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+      ORDER BY ORDINAL_POSITION
     `,
     [process.env.DB_NAME, tableName]
   );
@@ -102,15 +103,13 @@ async function getTableColumns(tableName) {
 
 async function getColumnNames(tableName) {
   const columns = await getTableColumns(tableName);
-  return columns.map(column => column.COLUMN_NAME);
+  return columns.map(row => row.COLUMN_NAME);
 }
 
 async function validateRequestColumns(tableName, data) {
   const allowedColumns = await getColumnNames(tableName);
 
-  const requestedColumns = Object.keys(data);
-
-  const invalidColumns = requestedColumns.filter(
+  const invalidColumns = Object.keys(data).filter(
     column => !allowedColumns.includes(column)
   );
 
@@ -131,49 +130,47 @@ function sanitizeUser(row) {
 }
 
 function money(value) {
-  const number = Number(value);
+  const n = Number(value);
 
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
+  if (!Number.isFinite(n)) return 0;
 
-  return Math.round((number + Number.EPSILON) * 100) / 100;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 function numberValue(value, fallback = 0) {
-  const number = Number(value);
+  const n = Number(value);
 
-  return Number.isFinite(number) ? number : fallback;
+  return Number.isFinite(n) ? n : fallback;
 }
 
 /* =========================================================
    QUOTATION NUMBER
 ========================================================= */
 
-async function generateQuotationNumber(connection = db) {
+async function generateQuotationNumber() {
   const year = new Date().getFullYear();
   const prefix = `QTN-${year}-`;
 
-  const [rows] = await connection.query(
+  const [rows] = await db.query(
     `
-    SELECT quotation_number
-    FROM quotations
-    WHERE quotation_number LIKE ?
-    ORDER BY id DESC
-    LIMIT 1
+      SELECT quotation_number
+      FROM quotations
+      WHERE quotation_number LIKE ?
+      ORDER BY id DESC
+      LIMIT 1
     `,
     [`${prefix}%`]
   );
 
   let nextNumber = 1;
 
-  if (rows.length > 0 && rows[0].quotation_number) {
-    const lastNumber = String(rows[0].quotation_number).replace(
+  if (rows.length && rows[0].quotation_number) {
+    const last = String(rows[0].quotation_number).replace(
       prefix,
       ""
     );
 
-    const parsed = parseInt(lastNumber, 10);
+    const parsed = parseInt(last, 10);
 
     if (Number.isFinite(parsed)) {
       nextNumber = parsed + 1;
@@ -187,19 +184,19 @@ async function generateQuotationNumber(connection = db) {
    QUOTATION CALCULATION
 
    SUBTOTAL
-        ↓
+      ↓
    DISCOUNT %
-        ↓
+      ↓
    DISCOUNT AMOUNT
-        ↓
-   AFTER DISCOUNT
-        ↓
+      ↓
+   SUBTOTAL AFTER DISCOUNT
+      ↓
    FREIGHT
-        ↓
+      ↓
    TAXABLE AMOUNT
-        ↓
+      ↓
    GST
-        ↓
+      ↓
    GRAND TOTAL
 ========================================================= */
 
@@ -211,7 +208,9 @@ function calculateQuotation({
   gst_percent = 18
 }) {
   subtotal = money(subtotal);
+
   discount_percent = numberValue(discount_percent);
+  discount = money(discount);
   freight = money(freight);
   gst_percent = numberValue(gst_percent, 18);
 
@@ -222,7 +221,7 @@ function calculateQuotation({
       subtotal * discount_percent / 100
     );
   } else {
-    discountAmount = money(discount);
+    discountAmount = discount;
   }
 
   if (discountAmount < 0) {
@@ -252,9 +251,8 @@ function calculateQuotation({
   return {
     subtotal,
     discount_percent: money(discount_percent),
-    discount: discountAmount,
     discount_amount: discountAmount,
-    after_discount: afterDiscount,
+    discount: discountAmount,
     freight,
     taxable_amount: taxableAmount,
     gst_percent: money(gst_percent),
@@ -264,7 +262,7 @@ function calculateQuotation({
 }
 
 /* =========================================================
-   HEALTH
+   HEALTH CHECK
 ========================================================= */
 
 app.get("/api/health", async (req, res) => {
@@ -312,10 +310,10 @@ app.get("/api", (req, res) => {
 
       quotation: {
         nextNumber: "GET /api/quotations/next-number",
+        calculate: "POST /api/quotations/calculate",
         details: "GET /api/quotations/:id/details",
         items: "GET /api/quotations/:id/items",
-        addItem: "POST /api/quotations/:id/items",
-        calculate: "POST /api/quotations/calculate"
+        addItem: "POST /api/quotations/:id/items"
       }
     },
 
@@ -327,55 +325,61 @@ app.get("/api", (req, res) => {
    NEXT QUOTATION NUMBER
 ========================================================= */
 
-app.get("/api/quotations/next-number", async (req, res) => {
-  try {
-    const quotationNumber =
-      await generateQuotationNumber();
+app.get(
+  "/api/quotations/next-number",
+  async (req, res) => {
+    try {
+      const quotationNumber =
+        await generateQuotationNumber();
 
-    res.json({
-      success: true,
-      quotation_number: quotationNumber
-    });
-  } catch (error) {
-    console.error(
-      "NEXT QUOTATION NUMBER ERROR:",
-      error
-    );
+      res.json({
+        success: true,
+        quotation_number: quotationNumber
+      });
+    } catch (error) {
+      console.error(
+        "NEXT QUOTATION NUMBER ERROR:",
+        error
+      );
 
-    res.status(500).json({
-      success: false,
-      message: "Unable to generate quotation number",
-      error: error.message
-    });
+      res.status(500).json({
+        success: false,
+        message: "Unable to generate quotation number",
+        error: error.message
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    CALCULATE QUOTATION
 ========================================================= */
 
-app.post("/api/quotations/calculate", async (req, res) => {
-  try {
-    const calculation =
-      calculateQuotation(req.body || {});
+app.post(
+  "/api/quotations/calculate",
+  async (req, res) => {
+    try {
+      const calculation =
+        calculateQuotation(req.body || {});
 
-    res.json({
-      success: true,
-      calculation
-    });
-  } catch (error) {
-    console.error(
-      "QUOTATION CALCULATION ERROR:",
-      error
-    );
+      res.json({
+        success: true,
+        calculation
+      });
+    } catch (error) {
+      console.error(
+        "QUOTATION CALCULATION ERROR:",
+        error
+      );
 
-    res.status(500).json({
-      success: false,
-      message: "Unable to calculate quotation",
-      error: error.message
-    });
+      res.status(500).json({
+        success: false,
+        message: "Unable to calculate quotation",
+        error: error.message
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    GET TABLE RECORDS
@@ -402,7 +406,6 @@ app.get("/api/:table", async (req, res) => {
       success: true,
       table,
       count: rows.length,
-
       data: rows.map(row =>
         table === "users"
           ? sanitizeUser(row)
@@ -410,10 +413,7 @@ app.get("/api/:table", async (req, res) => {
       )
     });
   } catch (error) {
-    console.error(
-      "GET TABLE ERROR:",
-      error
-    );
+    console.error("GET TABLE ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -427,611 +427,566 @@ app.get("/api/:table", async (req, res) => {
    TABLE SCHEMA
 ========================================================= */
 
-app.get("/api/:table/schema", async (req, res) => {
-  try {
-    const table =
-      normalizeTableName(req.params.table);
+app.get(
+  "/api/:table/schema",
+  async (req, res) => {
+    try {
+      const table =
+        normalizeTableName(req.params.table);
 
-    if (!table) {
-      return res.status(400).json({
+      if (!table) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid table"
+        });
+      }
+
+      const columns =
+        await getTableColumns(table);
+
+      res.json({
+        success: true,
+        table,
+        columns
+      });
+    } catch (error) {
+      console.error("SCHEMA ERROR:", error);
+
+      res.status(500).json({
         success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
+        message: "Unable to fetch schema",
+        error: error.message
       });
     }
-
-    const columns =
-      await getTableColumns(table);
-
-    res.json({
-      success: true,
-      table,
-      columns
-    });
-  } catch (error) {
-    console.error(
-      "SCHEMA ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to fetch schema",
-      error: error.message
-    });
   }
-});
+);
 
 /* =========================================================
    GET SINGLE RECORD
 ========================================================= */
 
-app.get("/api/:table/:id", async (req, res) => {
-  try {
-    const table =
-      normalizeTableName(req.params.table);
+app.get(
+  "/api/:table/:id",
+  async (req, res) => {
+    try {
+      const table =
+        normalizeTableName(req.params.table);
 
-    if (!table) {
-      return res.status(400).json({
+      if (!table) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid table"
+        });
+      }
+
+      const [rows] = await db.query(
+        `
+          SELECT *
+          FROM \`${table}\`
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [req.params.id]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({
+          success: false,
+          message:
+            `${table} record not found`
+        });
+      }
+
+      const record =
+        table === "users"
+          ? sanitizeUser(rows[0])
+          : rows[0];
+
+      res.json({
+        success: true,
+        table,
+        data: record
+      });
+    } catch (error) {
+      console.error(
+        "GET SINGLE ERROR:",
+        error
+      );
+
+      res.status(500).json({
         success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
+        message: "Unable to fetch record",
+        error: error.message
       });
     }
-
-    const [rows] = await db.query(
-      `
-      SELECT *
-      FROM \`${table}\`
-      WHERE id = ?
-      LIMIT 1
-      `,
-      [req.params.id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: `${table} record not found`
-      });
-    }
-
-    const record =
-      table === "users"
-        ? sanitizeUser(rows[0])
-        : rows[0];
-
-    res.json({
-      success: true,
-      table,
-      data: record
-    });
-  } catch (error) {
-    console.error(
-      "GET SINGLE ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to fetch record",
-      error: error.message
-    });
   }
-});
+);
 
 /* =========================================================
    CREATE RECORD
 ========================================================= */
 
-app.post("/api/:table", async (req, res) => {
-  try {
-    const table =
-      normalizeTableName(req.params.table);
+app.post(
+  "/api/:table",
+  async (req, res) => {
+    try {
+      const table =
+        normalizeTableName(req.params.table);
 
-    if (!table) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
-      });
-    }
-
-    let data = {
-      ...(req.body || {})
-    };
-
-    if (
-      typeof data !== "object" ||
-      Array.isArray(data) ||
-      Object.keys(data).length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Request body is required"
-      });
-    }
-
-    /* =====================================================
-       QUOTATION
-    ===================================================== */
-
-    if (table === "quotations") {
-
-      if (
-        !data.quotation_number ||
-        String(data.quotation_number).trim() === ""
-      ) {
-        data.quotation_number =
-          await generateQuotationNumber();
-      }
-
-      const calculation =
-        calculateQuotation({
-          subtotal: data.subtotal,
-          discount_percent:
-            data.discount_percent,
-          discount: data.discount,
-          freight: data.freight,
-          gst_percent: data.gst_percent
+      if (!table) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid table"
         });
-
-      data.subtotal =
-        calculation.subtotal;
-
-      data.discount_percent =
-        calculation.discount_percent;
-
-      data.discount =
-        calculation.discount;
-
-      data.discount_amount =
-        calculation.discount_amount;
-
-      data.freight =
-        calculation.freight;
-
-      data.taxable_amount =
-        calculation.taxable_amount;
-
-      data.gst_percent =
-        calculation.gst_percent;
-
-      data.gst_amount =
-        calculation.gst_amount;
-
-      data.grand_total =
-        calculation.grand_total;
-
-      if (!data.status) {
-        data.status = "Draft";
       }
-    }
 
-    /* =====================================================
-       QUOTATION ITEM ALIASES
-    ===================================================== */
-
-    if (table === "quotation_items") {
+      let data = {
+        ...(req.body || {})
+      };
 
       if (
-        data.name !== undefined &&
-        data.description === undefined
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data)
       ) {
-        data.description = data.name;
+        return res.status(400).json({
+          success: false,
+          message: "Invalid request body"
+        });
       }
 
-      if (
-        data.product_name !== undefined &&
-        data.description === undefined
-      ) {
-        data.description =
-          data.product_name;
+      /* -----------------------------------------
+         QUOTATION
+      ----------------------------------------- */
+
+      if (table === "quotations") {
+
+        if (
+          !data.quotation_number ||
+          !String(data.quotation_number).trim()
+        ) {
+          data.quotation_number =
+            await generateQuotationNumber();
+        }
+
+        const calculation =
+          calculateQuotation({
+            subtotal:
+              data.subtotal,
+
+            discount_percent:
+              data.discount_percent,
+
+            discount:
+              data.discount,
+
+            freight:
+              data.freight,
+
+            gst_percent:
+              data.gst_percent
+          });
+
+        Object.assign(
+          data,
+          calculation
+        );
+
+        if (!data.status) {
+          data.status = "Draft";
+        }
       }
 
-      if (
-        data.quote_id !== undefined &&
-        data.quotation_id === undefined
-      ) {
-        data.quotation_id =
-          data.quote_id;
+      /* -----------------------------------------
+         QUOTATION ITEMS
+      ----------------------------------------- */
+
+      if (table === "quotation_items") {
+
+        if (
+          data.name !== undefined &&
+          data.description === undefined
+        ) {
+          data.description = data.name;
+        }
+
+        if (
+          data.product_name !== undefined &&
+          data.description === undefined
+        ) {
+          data.description =
+            data.product_name;
+        }
+
+        if (
+          data.quote_id !== undefined &&
+          data.quotation_id === undefined
+        ) {
+          data.quotation_id =
+            data.quote_id;
+        }
+
+        delete data.name;
+        delete data.product_name;
+        delete data.quote_id;
       }
 
-      delete data.name;
-      delete data.product_name;
-      delete data.quote_id;
-    }
+      /* -----------------------------------------
+         ORDER ITEMS
+      ----------------------------------------- */
 
-    /* =====================================================
-       ORDER ITEM ALIASES
-    ===================================================== */
+      if (table === "order_items") {
 
-    if (table === "order_items") {
+        if (
+          data.name !== undefined &&
+          data.description === undefined
+        ) {
+          data.description = data.name;
+        }
 
-      if (
-        data.name !== undefined &&
-        data.description === undefined
-      ) {
-        data.description = data.name;
+        delete data.name;
       }
 
-      delete data.name;
-    }
+      delete data.id;
 
-    /* =====================================================
-       VALIDATE COLUMNS
-    ===================================================== */
+      /* -----------------------------------------
+         VALIDATE
+      ----------------------------------------- */
 
-    const validation =
-      await validateRequestColumns(
+      const validation =
+        await validateRequestColumns(
+          table,
+          data
+        );
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid column(s) supplied",
+          invalid_columns:
+            validation.invalidColumns,
+          allowed_columns:
+            validation.allowedColumns
+        });
+      }
+
+      const columns =
+        Object.keys(data);
+
+      if (!columns.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No insertable fields supplied"
+        });
+      }
+
+      const values =
+        columns.map(
+          column => data[column]
+        );
+
+      const placeholders =
+        columns
+          .map(() => "?")
+          .join(", ");
+
+      const columnNames =
+        columns
+          .map(column => `\`${column}\``)
+          .join(", ");
+
+      const sql = `
+        INSERT INTO \`${table}\`
+        (${columnNames})
+        VALUES (${placeholders})
+      `;
+
+      const [result] =
+        await db.query(
+          sql,
+          values
+        );
+
+      res.status(201).json({
+        success: true,
+        message:
+          `${table} record created successfully`,
         table,
-        data
-      );
+        id: result.insertId,
 
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid column(s) supplied",
-        table,
-        invalid_columns:
-          validation.invalidColumns,
-        allowed_columns:
-          validation.allowedColumns
-      });
-    }
+        ...(table === "quotations"
+          ? {
+              quotation_number:
+                data.quotation_number,
 
-    delete data.id;
+              calculation: {
+                subtotal:
+                  data.subtotal,
 
-    const columns =
-      Object.keys(data);
+                discount_percent:
+                  data.discount_percent,
 
-    if (columns.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No insertable fields supplied"
-      });
-    }
+                discount_amount:
+                  data.discount_amount,
 
-    const values =
-      columns.map(
-        column => data[column]
-      );
+                freight:
+                  data.freight,
 
-    const placeholders =
-      columns
-        .map(() => "?")
-        .join(", ");
+                taxable_amount:
+                  data.taxable_amount,
 
-    const columnNames =
-      columns
-        .map(column => `\`${column}\``)
-        .join(", ");
+                gst_percent:
+                  data.gst_percent,
 
-    const sql = `
-      INSERT INTO \`${table}\`
-      (${columnNames})
-      VALUES (${placeholders})
-    `;
+                gst_amount:
+                  data.gst_amount,
 
-    const [result] =
-      await db.query(
-        sql,
-        values
-      );
-
-    res.status(201).json({
-      success: true,
-      message:
-        `${table} record created successfully`,
-      table,
-      id: result.insertId,
-
-      ...(table === "quotations"
-        ? {
-            quotation_number:
-              data.quotation_number,
-
-            calculation: {
-              subtotal:
-                data.subtotal,
-
-              discount_percent:
-                data.discount_percent,
-
-              discount_amount:
-                data.discount_amount,
-
-              freight:
-                data.freight,
-
-              taxable_amount:
-                data.taxable_amount,
-
-              gst_percent:
-                data.gst_percent,
-
-              gst_amount:
-                data.gst_amount,
-
-              grand_total:
-                data.grand_total
+                grand_total:
+                  data.grand_total
+              }
             }
-          }
-        : {})
-    });
+          : {})
+      });
 
-  } catch (error) {
+    } catch (error) {
+      console.error(
+        "CREATE ERROR:",
+        error
+      );
 
-    console.error(
-      "CREATE ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to create record",
-      error: error.message,
-      code: error.code || null
-    });
+      res.status(500).json({
+        success: false,
+        message:
+          "Unable to create record",
+        error: error.message,
+        code: error.code || null
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    UPDATE RECORD
 ========================================================= */
 
-app.put("/api/:table/:id", async (req, res) => {
-  try {
-    const table =
-      normalizeTableName(req.params.table);
+app.put(
+  "/api/:table/:id",
+  async (req, res) => {
+    try {
+      const table =
+        normalizeTableName(req.params.table);
 
-    if (!table) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
-      });
-    }
+      if (!table) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid table"
+        });
+      }
 
-    let data = {
-      ...(req.body || {})
-    };
+      let data = {
+        ...(req.body || {})
+      };
 
-    if (
-      typeof data !== "object" ||
-      Array.isArray(data) ||
-      Object.keys(data).length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Request body is required"
-      });
-    }
+      delete data.id;
 
-    delete data.id;
+      /* -----------------------------------------
+         QUOTATION RECALCULATION
+      ----------------------------------------- */
 
-    /* =====================================================
-       QUOTATION UPDATE
-    ===================================================== */
+      if (table === "quotations") {
 
-    if (table === "quotations") {
+        const [existingRows] =
+          await db.query(
+            `
+              SELECT *
+              FROM quotations
+              WHERE id = ?
+              LIMIT 1
+            `,
+            [req.params.id]
+          );
 
-      const [existingRows] =
+        if (!existingRows.length) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Quotation not found"
+          });
+        }
+
+        const merged = {
+          ...existingRows[0],
+          ...data
+        };
+
+        const calculation =
+          calculateQuotation({
+            subtotal:
+              merged.subtotal,
+
+            discount_percent:
+              merged.discount_percent,
+
+            discount:
+              merged.discount,
+
+            freight:
+              merged.freight,
+
+            gst_percent:
+              merged.gst_percent
+          });
+
+        Object.assign(
+          data,
+          calculation
+        );
+      }
+
+      const validation =
+        await validateRequestColumns(
+          table,
+          data
+        );
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid column(s) supplied",
+          invalid_columns:
+            validation.invalidColumns,
+          allowed_columns:
+            validation.allowedColumns
+        });
+      }
+
+      const columns =
+        Object.keys(data);
+
+      if (!columns.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No updatable fields supplied"
+        });
+      }
+
+      const values =
+        columns.map(
+          column => data[column]
+        );
+
+      const setClause =
+        columns
+          .map(
+            column =>
+              `\`${column}\` = ?`
+          )
+          .join(", ");
+
+      values.push(req.params.id);
+
+      const [result] =
         await db.query(
           `
-          SELECT *
-          FROM quotations
-          WHERE id = ?
-          LIMIT 1
+            UPDATE \`${table}\`
+            SET ${setClause}
+            WHERE id = ?
+          `,
+          values
+        );
+
+      if (!result.affectedRows) {
+        return res.status(404).json({
+          success: false,
+          message:
+            `${table} record not found`
+        });
+      }
+
+      res.json({
+        success: true,
+        message:
+          `${table} record updated successfully`,
+        table,
+        id: Number(req.params.id)
+      });
+
+    } catch (error) {
+      console.error(
+        "UPDATE ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Unable to update record",
+        error: error.message
+      });
+    }
+  }
+);
+
+/* =========================================================
+   DELETE
+========================================================= */
+
+app.delete(
+  "/api/:table/:id",
+  async (req, res) => {
+    try {
+      const table =
+        normalizeTableName(req.params.table);
+
+      if (!table) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid table"
+        });
+      }
+
+      const [result] =
+        await db.query(
+          `
+            DELETE FROM \`${table}\`
+            WHERE id = ?
           `,
           [req.params.id]
         );
 
-      if (existingRows.length === 0) {
+      if (!result.affectedRows) {
         return res.status(404).json({
           success: false,
-          message: "Quotation not found"
+          message:
+            `${table} record not found`
         });
       }
 
-      const existing =
-        existingRows[0];
+      res.json({
+        success: true,
+        message:
+          `${table} deleted successfully`,
+        id: Number(req.params.id)
+      });
 
-      const merged = {
-        ...existing,
-        ...data
-      };
-
-      const calculation =
-        calculateQuotation({
-          subtotal: merged.subtotal,
-          discount_percent:
-            merged.discount_percent,
-          discount: merged.discount,
-          freight: merged.freight,
-          gst_percent:
-            merged.gst_percent
-        });
-
-      data.subtotal =
-        calculation.subtotal;
-
-      data.discount_percent =
-        calculation.discount_percent;
-
-      data.discount =
-        calculation.discount;
-
-      data.discount_amount =
-        calculation.discount_amount;
-
-      data.freight =
-        calculation.freight;
-
-      data.taxable_amount =
-        calculation.taxable_amount;
-
-      data.gst_percent =
-        calculation.gst_percent;
-
-      data.gst_amount =
-        calculation.gst_amount;
-
-      data.grand_total =
-        calculation.grand_total;
-    }
-
-    /* =====================================================
-       VALIDATE
-    ===================================================== */
-
-    const validation =
-      await validateRequestColumns(
-        table,
-        data
+    } catch (error) {
+      console.error(
+        "DELETE ERROR:",
+        error
       );
 
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid column(s) supplied",
-        table,
-        invalid_columns:
-          validation.invalidColumns,
-        allowed_columns:
-          validation.allowedColumns
-      });
-    }
-
-    const columns =
-      Object.keys(data);
-
-    if (columns.length === 0) {
-      return res.status(400).json({
+      res.status(500).json({
         success: false,
         message:
-          "No updatable fields supplied"
+          "Unable to delete record",
+        error: error.message
       });
     }
-
-    const values =
-      columns.map(
-        column => data[column]
-      );
-
-    const setClause =
-      columns
-        .map(
-          column =>
-            `\`${column}\` = ?`
-        )
-        .join(", ");
-
-    values.push(req.params.id);
-
-    const sql = `
-      UPDATE \`${table}\`
-      SET ${setClause}
-      WHERE id = ?
-    `;
-
-    const [result] =
-      await db.query(
-        sql,
-        values
-      );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message:
-          `${table} record not found`
-      });
-    }
-
-    res.json({
-      success: true,
-      message:
-        `${table} record updated successfully`,
-      table,
-      id: Number(req.params.id)
-    });
-
-  } catch (error) {
-
-    console.error(
-      "UPDATE ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Unable to update record",
-      error: error.message,
-      code: error.code || null
-    });
   }
-});
-
-/* =========================================================
-   DELETE RECORD
-========================================================= */
-
-app.delete("/api/:table/:id", async (req, res) => {
-  try {
-    const table =
-      normalizeTableName(req.params.table);
-
-    if (!table) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid table",
-        allowed_tables: ALLOWED_TABLES
-      });
-    }
-
-    const [result] =
-      await db.query(
-        `
-        DELETE FROM \`${table}\`
-        WHERE id = ?
-        `,
-        [req.params.id]
-      );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message:
-          `${table} record not found`
-      });
-    }
-
-    res.json({
-      success: true,
-      message:
-        `${table} record deleted successfully`,
-      table,
-      id: Number(req.params.id)
-    });
-
-  } catch (error) {
-
-    console.error(
-      "DELETE ERROR:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Unable to delete record",
-      error: error.message,
-      code: error.code || null
-    });
-  }
-});
+);
 
 /* =========================================================
    QUOTATION DETAILS
@@ -1041,22 +996,21 @@ app.get(
   "/api/quotations/:id/details",
   async (req, res) => {
     try {
-
       const quotationId =
         req.params.id;
 
       const [quotations] =
         await db.query(
           `
-          SELECT *
-          FROM quotations
-          WHERE id = ?
-          LIMIT 1
+            SELECT *
+            FROM quotations
+            WHERE id = ?
+            LIMIT 1
           `,
           [quotationId]
         );
 
-      if (quotations.length === 0) {
+      if (!quotations.length) {
         return res.status(404).json({
           success: false,
           message:
@@ -1067,10 +1021,10 @@ app.get(
       const [items] =
         await db.query(
           `
-          SELECT *
-          FROM quotation_items
-          WHERE quotation_id = ?
-          ORDER BY id ASC
+            SELECT *
+            FROM quotation_items
+            WHERE quotation_id = ?
+            ORDER BY id ASC
           `,
           [quotationId]
         );
@@ -1085,7 +1039,6 @@ app.get(
       });
 
     } catch (error) {
-
       console.error(
         "QUOTATION DETAILS ERROR:",
         error
@@ -1102,21 +1055,20 @@ app.get(
 );
 
 /* =========================================================
-   GET QUOTATION ITEMS
+   QUOTATION ITEMS
 ========================================================= */
 
 app.get(
   "/api/quotations/:id/items",
   async (req, res) => {
     try {
-
       const [rows] =
         await db.query(
           `
-          SELECT *
-          FROM quotation_items
-          WHERE quotation_id = ?
-          ORDER BY id ASC
+            SELECT *
+            FROM quotation_items
+            WHERE quotation_id = ?
+            ORDER BY id ASC
           `,
           [req.params.id]
         );
@@ -1127,12 +1079,10 @@ app.get(
           Number(req.params.id),
         count:
           rows.length,
-        items:
-          rows
+        items: rows
       });
 
     } catch (error) {
-
       console.error(
         "GET QUOTATION ITEMS ERROR:",
         error
@@ -1156,22 +1106,21 @@ app.post(
   "/api/quotations/:id/items",
   async (req, res) => {
     try {
-
       const quotationId =
         req.params.id;
 
-      const [quotationRows] =
+      const [quotation] =
         await db.query(
           `
-          SELECT id
-          FROM quotations
-          WHERE id = ?
-          LIMIT 1
+            SELECT id
+            FROM quotations
+            WHERE id = ?
+            LIMIT 1
           `,
           [quotationId]
         );
 
-      if (quotationRows.length === 0) {
+      if (!quotation.length) {
         return res.status(404).json({
           success: false,
           message:
@@ -1203,6 +1152,7 @@ app.post(
 
       delete data.name;
       delete data.product_name;
+      delete data.id;
 
       const validation =
         await validateRequestColumns(
@@ -1222,18 +1172,8 @@ app.post(
         });
       }
 
-      delete data.id;
-
       const columns =
         Object.keys(data);
-
-      if (columns.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "No quotation item fields supplied"
-        });
-      }
 
       const values =
         columns.map(
@@ -1247,20 +1187,16 @@ app.post(
 
       const columnNames =
         columns
-          .map(
-            column => `\`${column}\``
-          )
+          .map(column => `\`${column}\``)
           .join(", ");
-
-      const sql = `
-        INSERT INTO quotation_items
-        (${columnNames})
-        VALUES (${placeholders})
-      `;
 
       const [result] =
         await db.query(
-          sql,
+          `
+            INSERT INTO quotation_items
+            (${columnNames})
+            VALUES (${placeholders})
+          `,
           values
         );
 
@@ -1275,7 +1211,6 @@ app.post(
       });
 
     } catch (error) {
-
       console.error(
         "ADD QUOTATION ITEM ERROR:",
         error
@@ -1285,15 +1220,14 @@ app.post(
         success: false,
         message:
           "Unable to create quotation item",
-        error: error.message,
-        code: error.code || null
+        error: error.message
       });
     }
   }
 );
 
 /* =========================================================
-   ROOT PAGE
+   ROOT
 ========================================================= */
 
 app.get("/", (req, res) => {
@@ -1302,16 +1236,7 @@ app.get("/", (req, res) => {
       __dirname,
       "public",
       "index.html"
-    ),
-    error => {
-      if (error) {
-        res.status(500).send(`
-          <h1>Mahalaxmi Enterprise AI CRM</h1>
-          <p>CRM server is running.</p>
-          <p>Unable to load public/index.html.</p>
-        `);
-      }
-    }
+    )
   );
 });
 
@@ -1322,15 +1247,14 @@ app.get("/", (req, res) => {
 app.use("/api", (req, res) => {
   res.status(404).json({
     success: false,
-    message:
-      "API endpoint not found",
+    message: "API endpoint not found",
     method: req.method,
     path: req.originalUrl
   });
 });
 
 /* =========================================================
-   GLOBAL ERROR HANDLER
+   GLOBAL ERROR
 ========================================================= */
 
 app.use(
