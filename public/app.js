@@ -1,22 +1,12 @@
-/* =========================================================
-   MAHALAXMI ENTERPRISE AI CRM
-   public/app.js
-   ========================================================= */
-
 "use strict";
+
+/* =========================================================
+   MAHALAXMI ENTERPRISE CRM
+========================================================= */
 
 const API = "/api";
 
 let currentPage = "dashboard";
-let customersCache = [];
-let productsCache = [];
-let pageRequest = 0;
-
-let quotationItems = [];
-
-/* =========================================================
-   PAGE INFORMATION
-========================================================= */
 
 const PAGE_INFO = {
   dashboard: {
@@ -41,7 +31,7 @@ const PAGE_INFO = {
 
   quotations: {
     title: "Quotations",
-    subtitle: "Manage quotations and proposals"
+    subtitle: "Create professional quotations"
   },
 
   orders: {
@@ -60,26 +50,17 @@ const PAGE_INFO = {
   }
 };
 
-const TABLE_TITLES = {
+const TITLES = {
   customers: "Customer",
   products: "Product",
   enquiries: "Enquiry",
   quotations: "Quotation",
   orders: "Order",
   followups: "Follow-up",
-  payments: "Payment",
-  enquiry_items: "Enquiry item",
-  quotation_items: "Quotation item",
-  order_items: "Order item",
-  users: "User"
+  payments: "Payment"
 };
 
-/* =========================================================
-   NEW RECORD FIELDS
-========================================================= */
-
-const NEW_RECORD_FIELDS = {
-
+const NEW_FIELDS = {
   customers: [
     "company_name",
     "contact_person",
@@ -122,13 +103,8 @@ const NEW_RECORD_FIELDS = {
     "quotation_date",
     "valid_until",
     "status",
-    "subtotal",
-    "discount_amount",
     "freight",
-    "taxable_amount",
     "gst_percent",
-    "gst_amount",
-    "grand_total",
     "notes"
   ],
 
@@ -161,73 +137,16 @@ const NEW_RECORD_FIELDS = {
 };
 
 /* =========================================================
-   API HELPERS
+   HELPERS
 ========================================================= */
 
-async function apiRequest(endpoint, options = {}) {
+const $ = id =>
+  document.getElementById(id);
 
-  const response = await fetch(`${API}${endpoint}`, {
-    ...options,
-
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-
-  let result;
-
-  try {
-    result = await response.json();
-  } catch (error) {
-
-    throw new Error(
-      `Invalid server response (${response.status})`
-    );
+function esc(value) {
+  if (value == null) {
+    return "";
   }
-
-  if (
-    !response.ok ||
-    result.success === false
-  ) {
-
-    throw new Error(
-      result.error ||
-      result.message ||
-      `Request failed (${response.status})`
-    );
-  }
-
-  return result;
-}
-
-const apiGet = endpoint =>
-  apiRequest(endpoint);
-
-const apiPost = (endpoint, data) =>
-  apiRequest(endpoint, {
-    method: "POST",
-    body: JSON.stringify(data)
-  });
-
-const apiPut = (endpoint, data) =>
-  apiRequest(endpoint, {
-    method: "PUT",
-    body: JSON.stringify(data)
-  });
-
-const apiDelete = endpoint =>
-  apiRequest(endpoint, {
-    method: "DELETE"
-  });
-
-/* =========================================================
-   GENERAL HELPERS
-========================================================= */
-
-function escapeHtml(value) {
-
-  if (value == null) return "";
 
   return String(value)
     .replace(/&/g, "&amp;")
@@ -237,37 +156,23 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function humanize(value) {
-
-  return String(value || "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatCurrency(value) {
-
+function money(value) {
   return Number(value || 0).toLocaleString(
     "en-IN",
     {
       style: "currency",
       currency: "INR",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      minimumFractionDigits: 2
     }
   );
 }
 
-function formatDate(value) {
-
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return escapeHtml(value);
+function date(value) {
+  if (!value) {
+    return "—";
   }
 
-  return date.toLocaleDateString(
+  return new Date(value).toLocaleDateString(
     "en-IN",
     {
       day: "2-digit",
@@ -277,187 +182,95 @@ function formatDate(value) {
   );
 }
 
-function getContent() {
-
-  return document.getElementById("content");
-}
-
-function rows(result) {
-
-  if (Array.isArray(result)) {
-    return result;
-  }
-
-  return (
-    result.data ||
-    result.customers ||
-    result.items ||
-    []
-  );
-}
-
-function titleFor(table) {
-
-  return (
-    TABLE_TITLES[table] ||
-    humanize(table).replace(/s$/, "")
-  );
-}
-
-function valueFor(
-  row,
-  names,
-  fallback = "—"
-) {
-
-  for (const name of names) {
-
-    if (
-      row[name] != null &&
-      row[name] !== ""
-    ) {
-
-      return row[name];
-    }
-  }
-
-  return fallback;
-}
-
-function isDateField(field) {
-
-  return /date|_at$/.test(field);
-}
-
-function isNumberField(field) {
-
-  return (
-    /amount|price|total|quantity|stock|percent|discount|_id$/.test(
-      field
-    )
-  );
-}
-
-function isSystemField(field) {
-
-  return [
-    "id",
-    "created_at",
-    "updated_at",
-    "password",
-    "password_hash"
-  ].includes(field);
+function human(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /* =========================================================
-   UI
+   API
 ========================================================= */
 
-function updatePageHeader(page) {
+async function api(endpoint, options = {}) {
+  const response = await fetch(
+    API + endpoint,
+    {
+      ...options,
 
-  const info =
-    PAGE_INFO[page] ||
-    PAGE_INFO.dashboard;
+      headers: {
+        "Content-Type":
+          "application/json",
 
-  const title =
-    document.getElementById("pageTitle");
+        ...(options.headers || {})
+      }
+    }
+  );
 
-  const subtitle =
-    document.getElementById("pageSubtitle");
+  let data;
 
-  if (title) {
-    title.textContent = info.title;
-  }
-
-  if (subtitle) {
-    subtitle.textContent = info.subtitle;
-  }
-}
-
-function showLoading(message) {
-
-  const content = getContent();
-
-  if (content) {
-
-    content.innerHTML = `
-      <div class="loading">
-        ${escapeHtml(message)}
-      </div>
-    `;
-  }
-}
-
-function showError(error, retry = true) {
-
-  const content = getContent();
-
-  if (!content) return;
-
-  content.innerHTML = `
-    <div class="panel">
-      <div class="panel-body">
-
-        <div class="empty">
-
-          <div class="empty-icon">
-            ⚠️
-          </div>
-
-          <h3>
-            Unable to load this page
-          </h3>
-
-          <p>
-            ${escapeHtml(error.message)}
-          </p>
-
-          ${
-            retry
-              ? `
-                <button
-                  type="button"
-                  class="button-primary"
-                  data-action="retry"
-                >
-                  Try again
-                </button>
-              `
-              : ""
-          }
-
-        </div>
-
-      </div>
-    </div>
-  `;
-
-  content
-    .querySelector(
-      '[data-action="retry"]'
-    )
-    ?.addEventListener(
-      "click",
-      () => showPage(currentPage)
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(
+      `Invalid server response (${response.status})`
     );
+  }
+
+  if (
+    !response.ok ||
+    data.success === false
+  ) {
+    throw new Error(
+      data.error ||
+      data.message ||
+      "Request failed"
+    );
+  }
+
+  return data;
 }
 
-function notify(
-  message,
-  type = "success"
-) {
+const get = endpoint =>
+  api(endpoint);
 
+const post = (endpoint, data) =>
+  api(
+    endpoint,
+    {
+      method: "POST",
+      body: JSON.stringify(data)
+    }
+  );
+
+const put = (endpoint, data) =>
+  api(
+    endpoint,
+    {
+      method: "PUT",
+      body: JSON.stringify(data)
+    }
+  );
+
+const del = endpoint =>
+  api(
+    endpoint,
+    {
+      method: "DELETE"
+    }
+  );
+
+/* =========================================================
+   TOAST
+========================================================= */
+
+function toast(message, error = false) {
   let box =
-    document.getElementById(
-      "crmToast"
-    );
+    $("crmToast");
 
   if (!box) {
-
     box =
-      document.createElement(
-        "div"
-      );
+      document.createElement("div");
 
     box.id = "crmToast";
 
@@ -467,15 +280,23 @@ function notify(
     document.body.appendChild(box);
   }
 
-  box.textContent = message;
+  box.textContent =
+    message;
 
-  box.dataset.type = type;
+  box.dataset.type =
+    error
+      ? "error"
+      : "success";
 
-  box.classList.add("show");
+  box.classList.add(
+    "show"
+  );
 
-  clearTimeout(notify.timer);
+  clearTimeout(
+    toast.timer
+  );
 
-  notify.timer =
+  toast.timer =
     setTimeout(
       () =>
         box.classList.remove(
@@ -486,1006 +307,20 @@ function notify(
 }
 
 /* =========================================================
-   SAFE LIST
-========================================================= */
-
-async function safeList(table) {
-
-  try {
-
-    return rows(
-      await apiGet(`/${table}`)
-    );
-
-  } catch (error) {
-
-    console.warn(
-      `Could not load ${table}`,
-      error
-    );
-
-    return [];
-  }
-}
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-async function renderDashboard() {
-
-  const request =
-    ++pageRequest;
-
-  showLoading(
-    "Loading dashboard..."
-  );
-
-  try {
-
-    const [
-      customers,
-      products,
-      enquiries,
-      quotations,
-      orders,
-      followups
-    ] =
-      await Promise.all(
-        [
-          "customers",
-          "products",
-          "enquiries",
-          "quotations",
-          "orders",
-          "followups"
-        ].map(safeList)
-      );
-
-    if (
-      request !== pageRequest
-    ) {
-      return;
-    }
-
-    const quoteValue =
-      quotations.reduce(
-        (sum, item) =>
-          sum +
-          Number(
-            valueFor(
-              item,
-              [
-                "grand_total",
-                "total",
-                "amount"
-              ],
-              0
-            )
-          ),
-        0
-      );
-
-    getContent().innerHTML = `
-
-      <div class="stats">
-
-        ${statCard(
-          "Customers",
-          customers.length,
-          "Total customers"
-        )}
-
-        ${statCard(
-          "Products",
-          products.length,
-          "Product catalogue"
-        )}
-
-        ${statCard(
-          "Enquiries",
-          enquiries.length,
-          "Customer enquiries"
-        )}
-
-        ${statCard(
-          "Quotations",
-          quotations.length,
-          "Total quotations"
-        )}
-
-      </div>
-
-      <div class="grid-2">
-
-        ${recentPanel(
-          "Recent Enquiries",
-          "enquiries",
-          enquiries,
-          row => `
-            <td>
-              #${escapeHtml(row.id)}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                valueFor(
-                  row,
-                  [
-                    "subject",
-                    "requirement",
-                    "title"
-                  ]
-                )
-              )}
-            </td>
-
-            <td>
-              ${badge(
-                valueFor(
-                  row,
-                  ["status"],
-                  "New"
-                )
-              )}
-            </td>
-          `
-        )}
-
-        ${recentPanel(
-          "Recent Quotations",
-          "quotations",
-          quotations,
-          row => `
-            <td>
-              ${escapeHtml(
-                valueFor(
-                  row,
-                  [
-                    "quotation_number",
-                    "number",
-                    "id"
-                  ]
-                )
-              )}
-            </td>
-
-            <td>
-              ${badge(
-                valueFor(
-                  row,
-                  ["status"],
-                  "Draft"
-                )
-              )}
-            </td>
-
-            <td>
-              ${formatCurrency(
-                valueFor(
-                  row,
-                  [
-                    "grand_total",
-                    "total"
-                  ],
-                  0
-                )
-              )}
-            </td>
-          `
-        )}
-
-      </div>
-
-      <div
-        class="panel"
-        style="margin-top:20px"
-      >
-
-        <div class="panel-header">
-          <h2>
-            Business Summary
-          </h2>
-        </div>
-
-        <div class="panel-body">
-
-          <div class="stats">
-
-            ${statCard(
-              "Orders",
-              orders.length,
-              "Sales orders"
-            )}
-
-            ${statCard(
-              "Follow-ups",
-              followups.length,
-              "Scheduled activities"
-            )}
-
-            ${statCard(
-              "Quotation Value",
-              formatCurrency(
-                quoteValue
-              ),
-              "Across all quotations"
-            )}
-
-          </div>
-
-        </div>
-
-      </div>
-    `;
-
-    getContent()
-      .querySelectorAll(
-        "[data-page]"
-      )
-      .forEach(button => {
-
-        button.addEventListener(
-          "click",
-          () =>
-            showPage(
-              button.dataset.page
-            )
-        );
-
-      });
-
-  } catch (error) {
-
-    if (
-      request === pageRequest
-    ) {
-
-      showError(
-        error,
-        true
-      );
-    }
-  }
-}
-
-function statCard(
-  label,
-  value,
-  footer
-) {
-
-  return `
-    <div class="stat-card">
-
-      <div class="stat-label">
-        ${escapeHtml(label)}
-      </div>
-
-      <div class="stat-value">
-        ${escapeHtml(value)}
-      </div>
-
-      <div class="stat-footer">
-        ${escapeHtml(footer)}
-      </div>
-
-    </div>
-  `;
-}
-
-function recentPanel(
-  title,
-  page,
-  data,
-  rowTemplate
-) {
-
-  return `
-    <div class="panel">
-
-      <div class="panel-header">
-
-        <h2>
-          ${escapeHtml(title)}
-        </h2>
-
-        <button
-          type="button"
-          data-page="${page}"
-        >
-          View all
-        </button>
-
-      </div>
-
-      <div class="panel-body">
-
-        ${
-          data.length
-            ? `
-              <div class="table-wrapper">
-
-                <table>
-
-                  <tbody>
-
-                    ${data
-                      .slice(0, 5)
-                      .map(
-                        row =>
-                          `<tr>${rowTemplate(
-                            row
-                          )}</tr>`
-                      )
-                      .join("")}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-            `
-            : `
-              <div class="empty">
-
-                <div class="empty-icon">
-                  📭
-                </div>
-
-                No records yet
-
-              </div>
-            `
-        }
-
-      </div>
-
-    </div>
-  `;
-}
-
-/* =========================================================
-   CUSTOMERS / PRODUCTS / ENQUIRIES
-========================================================= */
-
-async function renderCustomers() {
-
-  customersCache =
-    await renderEntityPage(
-      "customers",
-      {
-        search: true
-      }
-    );
-}
-
-async function renderProducts() {
-
-  productsCache =
-    await renderEntityPage(
-      "products",
-      {
-        search: true
-      }
-    );
-}
-
-async function renderEnquiries() {
-
-  return renderEntityPage(
-    "enquiries",
-    {
-      search: true,
-      filters: [
-        "status",
-        "source",
-        "priority"
-      ],
-      detail: true
-    }
-  );
-}
-
-/* =========================================================
-   ENTITY PAGE
-========================================================= */
-
-async function renderEntityPage(
-  table,
-  options = {}
-) {
-
-  const request =
-    ++pageRequest;
-
-  showLoading(
-    `Loading ${table}...`
-  );
-
-  try {
-
-    const data =
-      await safeList(table);
-
-    if (
-      request !== pageRequest
-    ) {
-
-      return data;
-    }
-
-    renderTablePage(
-      table,
-      data,
-      options
-    );
-
-    return data;
-
-  } catch (error) {
-
-    if (
-      request === pageRequest
-    ) {
-
-      showError(
-        error,
-        true
-      );
-    }
-
-    return [];
-  }
-}
-
-/* =========================================================
-   TABLE COLUMNS
-========================================================= */
-
-function preferredColumns(
-  table,
-  data
-) {
-
-  const defaults = {
-
-    customers: [
-      "id",
-      "company_name",
-      "name",
-      "contact_person",
-      "mobile",
-      "email",
-      "city"
-    ],
-
-    products: [
-      "id",
-      "name",
-      "product_name",
-      "brand",
-      "model",
-      "selling_price",
-      "stock_quantity"
-    ],
-
-    enquiries: [
-      "id",
-      "subject",
-      "customer_id",
-      "source",
-      "status",
-      "priority",
-      "next_followup_date"
-    ],
-
-    quotations: [
-      "id",
-      "quotation_number",
-      "customer_id",
-      "quotation_date",
-      "status",
-      "grand_total"
-    ],
-
-    orders: [
-      "id",
-      "order_number",
-      "customer_id",
-      "order_date",
-      "status",
-      "grand_total"
-    ],
-
-    followups: [
-      "id",
-      "customer_id",
-      "enquiry_id",
-      "followup_date",
-      "followup_time",
-      "status"
-    ],
-
-    payments: [
-      "id",
-      "customer_id",
-      "payment_date",
-      "amount",
-      "payment_mode",
-      "status"
-    ]
-  };
-
-  const available =
-    new Set(
-      data.flatMap(
-        Object.keys
-      )
-    );
-
-  const selected =
-    (
-      defaults[table] ||
-      []
-    ).filter(
-      key =>
-        available.has(key)
-    );
-
-  return selected.length
-    ? selected
-    : [
-        ...available
-      ]
-        .filter(
-          key =>
-            !isSystemField(key)
-        )
-        .slice(0, 7);
-}
-
-/* =========================================================
-   RENDER TABLE
-========================================================= */
-
-function renderTablePage(
-  table,
-  data,
-  options
-) {
-
-  const content =
-    getContent();
-
-  const columns =
-    preferredColumns(
-      table,
-      data
-    );
-
-  const filterOptions =
-    options.filters || [];
-
-  content.innerHTML = `
-
-    <div class="toolbar">
-
-      <div class="toolbar-left">
-
-        ${
-          options.search
-            ? `
-              <input
-                id="tableSearch"
-                type="search"
-                placeholder="Search..."
-                autocomplete="off"
-              >
-            `
-            : ""
-        }
-
-        ${filterOptions
-          .map(
-            field => `
-              <select
-                data-filter="${field}"
-              >
-
-                <option value="">
-                  All ${humanize(field)}
-                </option>
-
-                ${[
-                  ...new Set(
-                    data
-                      .map(
-                        row =>
-                          row[field]
-                      )
-                      .filter(Boolean)
-                  )
-                ]
-                  .map(
-                    value =>
-                      `
-                        <option
-                          value="${escapeHtml(
-                            value
-                          )}"
-                        >
-                          ${escapeHtml(
-                            value
-                          )}
-                        </option>
-                      `
-                  )
-                  .join("")}
-
-              </select>
-            `
-          )
-          .join("")}
-
-      </div>
-
-      <button
-        type="button"
-        class="button-primary"
-        id="newRecordButton"
-      >
-        + New ${titleFor(table)}
-      </button>
-
-    </div>
-
-    <div class="panel">
-
-      <div class="panel-body">
-
-        <div class="table-wrapper">
-
-          <table>
-
-            <thead>
-
-              <tr>
-
-                ${columns
-                  .map(
-                    key =>
-                      `
-                        <th>
-                          ${escapeHtml(
-                            humanize(key)
-                          )}
-                        </th>
-                      `
-                  )
-                  .join("")}
-
-                <th>
-                  Action
-                </th>
-
-              </tr>
-
-            </thead>
-
-            <tbody
-              id="recordsBody"
-            ></tbody>
-
-          </table>
-
-        </div>
-
-        <div
-          id="tableEmpty"
-          class="empty"
-          hidden
-        >
-
-          <div class="empty-icon">
-            📭
-          </div>
-
-          No ${escapeHtml(table)}
-          found
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-
-  const draw = () => {
-
-    const query =
-      (
-        content.querySelector(
-          "#tableSearch"
-        )?.value || ""
-      )
-        .trim()
-        .toLowerCase();
-
-    const activeFilters =
-      Object.fromEntries(
-        [
-          ...content.querySelectorAll(
-            "[data-filter]"
-          )
-        ].map(
-          el => [
-            el.dataset.filter,
-            el.value
-          ]
-        )
-      );
-
-    const visible =
-      data.filter(
-        row =>
-
-          (
-            !query ||
-            Object.values(row).some(
-              value =>
-                String(
-                  value ?? ""
-                )
-                  .toLowerCase()
-                  .includes(query)
-            )
-          ) &&
-
-          Object.entries(
-            activeFilters
-          ).every(
-            ([key, value]) =>
-              !value ||
-              String(row[key]) ===
-                value
-          )
-      );
-
-    content.querySelector(
-      "#recordsBody"
-    ).innerHTML =
-      visible
-        .map(
-          row =>
-            `
-              <tr>
-
-                ${columns
-                  .map(
-                    key =>
-                      `
-                        <td>
-                          ${cellValue(
-                            row[key],
-                            key
-                          )}
-                        </td>
-                      `
-                  )
-                  .join("")}
-
-                <td
-                  class="table-actions"
-                >
-
-                  <button
-                    type="button"
-                    data-action="view"
-                    data-id="${row.id}"
-                  >
-                    View
-                  </button>
-
-                  <button
-                    type="button"
-                    data-action="edit"
-                    data-id="${row.id}"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    data-action="delete"
-                    data-id="${row.id}"
-                  >
-                    Delete
-                  </button>
-
-                </td>
-
-              </tr>
-            `
-        )
-        .join("");
-
-    content.querySelector(
-      "#tableEmpty"
-    ).hidden =
-      visible.length > 0;
-  };
-
-  content
-    .querySelector(
-      "#newRecordButton"
-    )
-    .addEventListener(
-      "click",
-      () =>
-        openRecordModal(
-          table,
-          null,
-          data
-        )
-    );
-
-  content
-    .querySelector(
-      "#tableSearch"
-    )
-    ?.addEventListener(
-      "input",
-      draw
-    );
-
-  content
-    .querySelectorAll(
-      "[data-filter]"
-    )
-    .forEach(
-      el =>
-        el.addEventListener(
-          "change",
-          draw
-        )
-    );
-
-  content
-    .querySelector(
-      "#recordsBody"
-    )
-    .addEventListener(
-      "click",
-      event => {
-
-        const button =
-          event.target.closest(
-            "button[data-action]"
-          );
-
-        if (!button) return;
-
-        const record =
-          data.find(
-            row =>
-              String(row.id) ===
-              button.dataset.id
-          );
-
-        if (!record) return;
-
-        if (
-          button.dataset.action ===
-          "delete"
-        ) {
-
-          deleteRecord(
-            table,
-            record
-          );
-
-        } else if (
-          button.dataset.action ===
-          "edit"
-        ) {
-
-          openRecordModal(
-            table,
-            record,
-            data
-          );
-
-        } else {
-
-          openDetailModal(
-            table,
-            record,
-            data
-          );
-        }
-      }
-    );
-
-  draw();
-}
-
-/* =========================================================
-   CELL FORMAT
-========================================================= */
-
-function cellValue(
-  value,
-  key
-) {
-
-  if (
-    value == null ||
-    value === ""
-  ) {
-
-    return "—";
-  }
-
-  if (
-    /status|priority/.test(key)
-  ) {
-
-    return badge(value);
-  }
-
-  if (
-    isDateField(key)
-  ) {
-
-    return formatDate(value);
-  }
-
-  if (
-    /price|amount|total/.test(key)
-  ) {
-
-    return formatCurrency(
-      value
-    );
-  }
-
-  return escapeHtml(value);
-}
-
-function badge(value) {
-
-  const cls =
-    String(value)
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(
-        /[^a-z0-9-]/g,
-        ""
-      );
-
-  return `
-    <span
-      class="badge badge-${cls}"
-    >
-      ${escapeHtml(value)}
-    </span>
-  `;
-}
-
-/* =========================================================
    MODAL
 ========================================================= */
 
-function modalHost() {
-
+function modal(
+  title,
+  body,
+  size = ""
+) {
   let host =
     document.getElementById(
       "crmModalHost"
     );
 
   if (!host) {
-
     host =
       document.createElement(
         "div"
@@ -1499,63 +334,30 @@ function modalHost() {
     );
   }
 
-  return host;
-}
-
-function openModal(
-  title,
-  body,
-  size = ""
-) {
-
-  const host =
-    modalHost();
-
   host.innerHTML = `
-
-    <div
-      class="modal-backdrop"
-      role="presentation"
-    >
-
-      <div
-        class="modal ${size}"
-        role="dialog"
-        aria-modal="true"
-        aria-label="${escapeHtml(
-          title
-        )}"
-      >
+    <div class="modal-backdrop">
+      <div class="modal ${size}">
 
         <div class="modal-header">
-
-          <h2>
-            ${escapeHtml(title)}
-          </h2>
+          <h2>${esc(title)}</h2>
 
           <button
-            type="button"
             class="modal-close"
-            aria-label="Close"
+            type="button"
           >
             ×
           </button>
-
         </div>
 
         <div class="modal-body">
-
           ${body}
-
         </div>
 
       </div>
-
     </div>
   `;
 
   const close = () => {
-
     host.innerHTML = "";
   };
 
@@ -1563,28 +365,20 @@ function openModal(
     .querySelector(
       ".modal-close"
     )
-    .addEventListener(
-      "click",
-      close
-    );
+    .onclick = close;
 
   host
     .querySelector(
       ".modal-backdrop"
     )
-    .addEventListener(
-      "click",
-      event => {
-
-        if (
-          event.target ===
-          event.currentTarget
-        ) {
-
-          close();
-        }
+    .onclick = event => {
+      if (
+        event.target ===
+        event.currentTarget
+      ) {
+        close();
       }
-    );
+    };
 
   return {
     host,
@@ -1593,247 +387,718 @@ function openModal(
 }
 
 /* =========================================================
-   FORM FIELDS
+   HEADER
 ========================================================= */
 
-function fieldsFor(
-  table,
-  record,
-  records
-) {
+function updateHeader(page) {
+  const info =
+    PAGE_INFO[page] ||
+    PAGE_INFO.dashboard;
 
-  if (record) {
+  if ($("pageTitle")) {
+    $("pageTitle").textContent =
+      info.title;
+  }
 
-    return Object.keys(
-      record
-    ).filter(
-      key =>
-        !isSystemField(key)
+  if ($("pageSubtitle")) {
+    $("pageSubtitle").textContent =
+      info.subtitle;
+  }
+}
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+function loading(message) {
+  if (!$("content")) {
+    return;
+  }
+
+  $("content").innerHTML = `
+    <div class="loading">
+      ${esc(message)}
+    </div>
+  `;
+}
+
+/* =========================================================
+   LIST
+========================================================= */
+
+async function list(table) {
+  try {
+    const result =
+      await get(
+        `/${table}`
+      );
+
+    return result.data || [];
+
+  } catch (error) {
+    console.warn(
+      table,
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   DISPLAY HELPERS
+========================================================= */
+
+function badge(value) {
+  return `
+    <span class="badge">
+      ${esc(value)}
+    </span>
+  `;
+}
+
+function cell(value, key) {
+  if (
+    value == null ||
+    value === ""
+  ) {
+    return "—";
+  }
+
+  if (
+    /status|priority/.test(
+      key
+    )
+  ) {
+    return badge(value);
+  }
+
+  if (
+    /date|_at$/.test(
+      key
+    )
+  ) {
+    return date(value);
+  }
+
+  if (
+    /price|amount|total|freight/.test(
+      key
+    )
+  ) {
+    return money(value);
+  }
+
+  if (
+    /percent/.test(
+      key
+    )
+  ) {
+    return (
+      esc(value) +
+      "%"
     );
   }
 
-  const known =
-    NEW_RECORD_FIELDS[
-      table
-    ] || [];
-
-  const observed =
-    records
-      .flatMap(
-        Object.keys
-      )
-      .filter(
-        key =>
-          !isSystemField(key)
-      );
-
-  return [
-    ...new Set(
-      [
-        ...known.filter(
-          key =>
-            observed.includes(key)
-        ),
-        ...observed
-      ]
-    )
-  ];
+  return esc(value);
 }
 
-function fieldInput(
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+async function dashboard() {
+  loading(
+    "Loading dashboard..."
+  );
+
+  const [
+    customers,
+    products,
+    enquiries,
+    quotations,
+    orders,
+    followups
+  ] =
+    await Promise.all([
+      list("customers"),
+      list("products"),
+      list("enquiries"),
+      list("quotations"),
+      list("orders"),
+      list("followups")
+    ]);
+
+  const totalQuotationValue =
+    quotations.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.grand_total || 0
+        ),
+      0
+    );
+
+  $("content").innerHTML = `
+    <div class="stats">
+
+      ${stat(
+        "Customers",
+        customers.length,
+        "Total customers"
+      )}
+
+      ${stat(
+        "Products",
+        products.length,
+        "Product catalogue"
+      )}
+
+      ${stat(
+        "Enquiries",
+        enquiries.length,
+        "Customer enquiries"
+      )}
+
+      ${stat(
+        "Quotations",
+        quotations.length,
+        "Total quotations"
+      )}
+
+    </div>
+
+    <div class="panel">
+
+      <div class="panel-header">
+        <h2>
+          Business Summary
+        </h2>
+      </div>
+
+      <div class="panel-body">
+
+        <div class="stats">
+
+          ${stat(
+            "Orders",
+            orders.length,
+            "Sales orders"
+          )}
+
+          ${stat(
+            "Follow-ups",
+            followups.length,
+            "Scheduled activities"
+          )}
+
+          ${stat(
+            "Quotation Value",
+            money(
+              totalQuotationValue
+            ),
+            "Across all quotations"
+          )}
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+function stat(
+  title,
+  value,
+  footer
+) {
+  return `
+    <div class="stat-card">
+
+      <div class="stat-label">
+        ${esc(title)}
+      </div>
+
+      <div class="stat-value">
+        ${esc(value)}
+      </div>
+
+      <div class="stat-footer">
+        ${esc(footer)}
+      </div>
+
+    </div>
+  `;
+}
+
+/* =========================================================
+   GENERIC ENTITY PAGE
+========================================================= */
+
+async function entity(table) {
+  loading(
+    `Loading ${table}...`
+  );
+
+  const data =
+    await list(table);
+
+  const defaults = {
+    customers: [
+      "id",
+      "company_name",
+      "contact_person",
+      "mobile",
+      "email",
+      "city"
+    ],
+
+    products: [
+      "id",
+      "name",
+      "brand",
+      "model",
+      "selling_price",
+      "stock_quantity"
+    ],
+
+    enquiries: [
+      "id",
+      "subject",
+      "customer_id",
+      "source",
+      "status",
+      "priority"
+    ],
+
+    quotations: [
+      "id",
+      "quotation_number",
+      "customer_id",
+      "quotation_date",
+      "status",
+      "freight",
+      "gst_percent",
+      "grand_total"
+    ],
+
+    orders: [
+      "id",
+      "order_number",
+      "customer_id",
+      "order_date",
+      "status",
+      "grand_total"
+    ]
+  };
+
+  const keys =
+    (
+      defaults[table] ||
+      []
+    ).filter(
+      key =>
+        data.some(
+          row =>
+            key in row
+        )
+    );
+
+  $("content").innerHTML = `
+    <div class="toolbar">
+
+      <input
+        id="search"
+        placeholder="Search..."
+      >
+
+      <button
+        class="button-primary"
+        id="new"
+      >
+        + New
+        ${esc(
+          TITLES[table] ||
+          human(table)
+        )}
+      </button>
+
+    </div>
+
+    <div class="panel">
+
+      <div class="panel-body">
+
+        <div class="table-wrapper">
+
+          <table>
+
+            <thead>
+              <tr>
+
+                ${keys
+                  .map(
+                    key =>
+                      `<th>
+                        ${esc(
+                          human(key)
+                        )}
+                      </th>`
+                  )
+                  .join("")}
+
+                <th>
+                  Action
+                </th>
+
+              </tr>
+            </thead>
+
+            <tbody
+              id="body"
+            ></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  const draw = () => {
+    const query =
+      $("search")
+        .value
+        .toLowerCase();
+
+    const filtered =
+      data.filter(
+        row =>
+          !query ||
+          Object.values(row)
+            .some(
+              value =>
+                String(
+                  value ?? ""
+                )
+                  .toLowerCase()
+                  .includes(
+                    query
+                  )
+            )
+      );
+
+    $("body").innerHTML =
+      filtered
+        .map(
+          row =>
+            `
+            <tr>
+
+              ${keys
+                .map(
+                  key =>
+                    `<td>
+                      ${cell(
+                        row[key],
+                        key
+                      )}
+                    </td>`
+                )
+                .join("")}
+
+              <td
+                class="table-actions"
+              >
+
+                <button
+                  data-action="view"
+                  data-id="${row.id}"
+                >
+                  View
+                </button>
+
+                <button
+                  data-action="edit"
+                  data-id="${row.id}"
+                >
+                  Edit
+                </button>
+
+                <button
+                  data-action="delete"
+                  data-id="${row.id}"
+                >
+                  Delete
+                </button>
+
+              </td>
+
+            </tr>
+            `
+        )
+        .join("");
+  };
+
+  $("search").oninput =
+    draw;
+
+  $("new").onclick =
+    () => {
+      if (
+        table ===
+        "quotations"
+      ) {
+        quotationEditor();
+      } else {
+        genericEditor(
+          table,
+          null,
+          data
+        );
+      }
+    };
+
+  $("body").onclick =
+    event => {
+      const button =
+        event.target.closest(
+          "button"
+        );
+
+      if (!button) {
+        return;
+      }
+
+      const record =
+        data.find(
+          row =>
+            String(row.id) ===
+            String(
+              button.dataset.id
+            )
+        );
+
+      if (!record) {
+        return;
+      }
+
+      if (
+        button.dataset.action ===
+        "delete"
+      ) {
+        deleteRecord(
+          table,
+          record
+        );
+      }
+
+      else if (
+        button.dataset.action ===
+        "edit"
+      ) {
+        if (
+          table ===
+          "quotations"
+        ) {
+          quotationEditor(
+            record
+          );
+        } else {
+          genericEditor(
+            table,
+            record,
+            data
+          );
+        }
+      }
+
+      else {
+        if (
+          table ===
+          "quotations"
+        ) {
+          quotationView(
+            record
+          );
+        } else {
+          genericView(
+            table,
+            record
+          );
+        }
+      }
+    };
+
+  draw();
+}
+
+/* =========================================================
+   GENERIC VIEW
+========================================================= */
+
+function genericView(
+  table,
+  record
+) {
+  modal(
+    `${
+      TITLES[table] ||
+      human(table)
+    } #${record.id}`,
+
+    `
+      <div class="detail-grid">
+
+        ${Object.entries(
+          record
+        )
+          .filter(
+            ([key]) =>
+              ![
+                "id",
+                "created_at",
+                "updated_at"
+              ].includes(key)
+          )
+          .map(
+            ([key, value]) =>
+              `
+              <div
+                class="detail-item"
+              >
+
+                <div
+                  class="detail-label"
+                >
+                  ${esc(
+                    human(key)
+                  )}
+                </div>
+
+                <div
+                  class="detail-value"
+                >
+                  ${cell(
+                    value,
+                    key
+                  )}
+                </div>
+
+              </div>
+              `
+          )
+          .join("")}
+
+      </div>
+    `
+  );
+}
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+function input(
   field,
   value
 ) {
-
   const type =
-    isDateField(field)
+    /date/.test(field)
       ? "date"
-      : (
-          isNumberField(field)
-            ? "number"
-            : "text"
-        );
-
-  const dateValue =
-    type === "date" &&
-    value
-      ? String(value).slice(
-          0,
-          10
+      : /id$|amount|price|total|quantity|stock|percent|freight|gst|rate/.test(
+          field
         )
-      : (
-          value ?? ""
-        );
+      ? "number"
+      : "text";
 
   if (
-    /notes|description|requirement|address/.test(
+    /notes|description|address/.test(
       field
     )
   ) {
-
     return `
       <textarea
-        name="${escapeHtml(field)}"
-        rows="3"
-      >${escapeHtml(
-        dateValue
+        name="${esc(field)}"
+      >${esc(
+        value ?? ""
       )}</textarea>
-    `;
-  }
-
-  if (
-    field === "status"
-  ) {
-
-    return `
-      <select
-        name="status"
-      >
-
-        <option value="New">
-          New
-        </option>
-
-        <option value="Contacted">
-          Contacted
-        </option>
-
-        <option value="Requirement Received">
-          Requirement Received
-        </option>
-
-        <option value="Quotation Pending">
-          Quotation Pending
-        </option>
-
-        <option value="Quotation Sent">
-          Quotation Sent
-        </option>
-
-        <option value="Negotiation">
-          Negotiation
-        </option>
-
-        <option value="Won">
-          Won
-        </option>
-
-        <option value="Lost">
-          Lost
-        </option>
-
-        <option value="On Hold">
-          On Hold
-        </option>
-
-        <option value="Draft">
-          Draft
-        </option>
-
-      </select>
-    `;
-  }
-
-  if (
-    field === "priority"
-  ) {
-
-    return `
-      <select
-        name="priority"
-      >
-
-        <option value="Low">
-          Low
-        </option>
-
-        <option value="Normal">
-          Normal
-        </option>
-
-        <option value="High">
-          High
-        </option>
-
-        <option value="Urgent">
-          Urgent
-        </option>
-
-      </select>
     `;
   }
 
   return `
     <input
-      name="${escapeHtml(field)}"
+      name="${esc(field)}"
       type="${type}"
       ${
         type === "number"
           ? 'step="any"'
           : ""
       }
-      value="${escapeHtml(
-        dateValue
+      value="${esc(
+        type === "date" &&
+        value
+          ? String(value).slice(
+              0,
+              10
+            )
+          : value ?? ""
       )}"
     >
   `;
 }
 
 /* =========================================================
-   GENERIC RECORD MODAL
+   GENERIC EDITOR
 ========================================================= */
 
-function openRecordModal(
+function genericEditor(
   table,
   record,
   records
 ) {
-
-  /*
-   Quotation has its own special editor.
-  */
-
-  if (
-    table === "quotations"
-  ) {
-
-    return openQuotationModal(
-      record,
-      records
-    );
-  }
-
   const fields =
-    fieldsFor(
-      table,
-      record,
-      records
-    );
+    record
+      ? Object.keys(
+          record
+        ).filter(
+          key =>
+            ![
+              "id",
+              "created_at",
+              "updated_at"
+            ].includes(key)
+        )
+      : (
+          NEW_FIELDS[table] ||
+          Object.keys(
+            records[0] || {}
+          ).filter(
+            key =>
+              ![
+                "id",
+                "created_at",
+                "updated_at"
+              ].includes(key)
+          )
+        );
 
-  if (!fields.length) {
-
-    notify(
-      `Add one ${titleFor(
-        table
-      )} first through the API, then its fields can be detected.`,
-      "error"
-    );
-
-    return;
-  }
-
-  const modal =
-    openModal(
+  const m =
+    modal(
       `${
         record
           ? "Edit"
           : "New"
-      } ${titleFor(table)}`,
+      } ${
+        TITLES[table] ||
+        human(table)
+      }`,
 
       `
-        <form
-          id="recordForm"
-        >
+        <form id="generic">
 
           <div class="form-grid">
 
@@ -1841,33 +1106,31 @@ function openRecordModal(
               .map(
                 field =>
                   `
-                    <label>
+                  <label>
+                    ${esc(
+                      human(field)
+                    )}
 
-                      ${escapeHtml(
-                        humanize(
-                          field
-                        )
-                      )}
+                    ${input(
+                      field,
+                      record?.[
+                        field
+                      ]
+                    )}
 
-                      ${fieldInput(
-                        field,
-                        record?.[
-                          field
-                        ]
-                      )}
-
-                    </label>
+                  </label>
                   `
               )
               .join("")}
 
           </div>
 
-          <div class="modal-actions">
+          <div
+            class="modal-actions"
+          >
 
             <button
               type="button"
-              class="button-secondary"
               data-close
             >
               Cancel
@@ -1875,15 +1138,8 @@ function openRecordModal(
 
             <button
               class="button-primary"
-              type="submit"
             >
-              ${
-                record
-                  ? "Save changes"
-                  : `Create ${titleFor(
-                      table
-                    )}`
-              }
+              Save
             </button>
 
           </div>
@@ -1894,2511 +1150,74 @@ function openRecordModal(
       "modal-large"
     );
 
-  for (
-    const field of [
-      "status",
-      "priority"
-    ]
-  ) {
-
-    const el =
-      modal.host.querySelector(
-        `[name="${field}"]`
-      );
-
-    if (
-      el &&
-      record?.[field]
-    ) {
-
-      el.value =
-        record[field];
-    }
-  }
-
-  modal.host
+  m.host
     .querySelector(
       "[data-close]"
     )
-    .addEventListener(
-      "click",
-      modal.close
-    );
+    .onclick =
+    m.close;
 
-  modal.host
+  m.host
     .querySelector(
-      "#recordForm"
+      "#generic"
     )
-    .addEventListener(
-      "submit",
-      async event => {
-
-        event.preventDefault();
-
-        const payload =
-          formPayload(
-            event.currentTarget
-          );
-
-        try {
-
-          if (record) {
-
-            await apiPut(
-              `/${table}/${record.id}`,
-              payload
-            );
-
-          } else {
-
-            await apiPost(
-              `/${table}`,
-              payload
-            );
-          }
-
-          notify(
-            `${titleFor(
-              table
-            )} ${
-              record
-                ? "updated"
-                : "created"
-            } successfully.`
-          );
-
-          modal.close();
-
-          showPage(table);
-
-        } catch (error) {
-
-          notify(
-            error.message,
-            "error"
-          );
-        }
-      }
-    );
-}
-
-/* =========================================================
-   FORM PAYLOAD
-========================================================= */
-
-function formPayload(form) {
-
-  const payload = {};
-
-  new FormData(form)
-    .forEach(
-      (value, key) => {
-
-        const text =
-          String(value).trim();
-
-        if (
-          text !== ""
-        ) {
-
-          payload[key] =
-            isNumberField(key)
-              ? Number(text)
-              : text;
-        }
-      }
-    );
-
-  return payload;
-}
-
-/* =========================================================
-   QUOTATION MODAL
-========================================================= */
-
-async function openQuotationModal(
-  record = null,
-  records = []
-) {
-
-  quotationItems = [];
-
-  /*
-   Load existing quotation items
-   when editing.
-  */
-
-  if (record) {
-
-    try {
-
-      const result =
-        await apiGet(
-          `/quotations/${record.id}/details`
-        );
-
-      quotationItems =
-        Array.isArray(
-          result.items
-        )
-          ? result.items.map(
-              item =>
-                normalizeQuotationItem(
-                  item
-                )
-            )
-          : [];
-
-    } catch (error) {
-
-      console.error(
-        "Unable to load quotation items",
-        error
-      );
-
-      quotationItems = [];
-    }
-  }
-
-  let customers =
-    customersCache;
-
-  if (
-    !customers.length
-  ) {
-
-    customers =
-      await safeList(
-        "customers"
-      );
-
-    customersCache =
-      customers;
-  }
-
-  let products =
-    productsCache;
-
-  if (
-    !products.length
-  ) {
-
-    products =
-      await safeList(
-        "products"
-      );
-
-    productsCache =
-      products;
-  }
-
-  const modal =
-    openModal(
-      `${
-        record
-          ? "Edit"
-          : "New"
-      } Quotation`,
-
-      quotationFormHTML(
-        record,
-        customers,
-        products
-      ),
-
-      "modal-xl"
-    );
-
-  setupQuotationModal(
-    modal,
-    record,
-    customers,
-    products
-  );
-}
-
-/* =========================================================
-   NORMALIZE QUOTATION ITEM
-========================================================= */
-
-function normalizeQuotationItem(
-  item
-) {
-
-  const quantity =
-    Number(
-      item.quantity ||
-      item.qty ||
-      0
-    );
-
-  const rate =
-    Number(
-      item.rate ||
-      item.price ||
-      0
-    );
-
-  const discountPercent =
-    Number(
-      item.discount_percent ||
-      0
-    );
-
-  const lineSubtotal =
-    quantity * rate;
-
-  const discountAmount =
-    lineSubtotal *
-    discountPercent /
-    100;
-
-  const lineTotal =
-    lineSubtotal -
-    discountAmount;
-
-  return {
-
-    ...item,
-
-    quantity,
-
-    rate,
-
-    discount_percent:
-      discountPercent,
-
-    line_subtotal:
-      lineSubtotal,
-
-    discount_amount:
-      discountAmount,
-
-    line_total:
-      lineTotal
-  };
-}
-
-/* =========================================================
-   QUOTATION FORM HTML
-========================================================= */
-
-function quotationFormHTML(
-  record,
-  customers,
-  products
-) {
-
-  const today =
-    new Date()
-      .toISOString()
-      .slice(0, 10);
-
-  const quotationDate =
-    record?.quotation_date
-      ? String(
-          record.quotation_date
-        ).slice(0, 10)
-      : today;
-
-  const validUntil =
-    record?.valid_until
-      ? String(
-          record.valid_until
-        ).slice(0, 10)
-      : "";
-
-  return `
-
-    <form
-      id="quotationForm"
-    >
-
-      <div class="quotation-top-grid">
-
-        <label>
-
-          Quotation Number
-
-          <input
-            id="quotationNumber"
-            name="quotation_number"
-            value="${escapeHtml(
-              record?.quotation_number ||
-              ""
-            )}"
-            placeholder="Auto generated"
-            readonly
-          >
-
-        </label>
-
-        <label>
-
-          Customer
-
-          <select
-            id="quotationCustomer"
-            name="customer_id"
-          >
-
-            <option value="">
-              Select Customer
-            </option>
-
-            ${customers
-              .map(
-                customer =>
-                  `
-                    <option
-                      value="${customer.id}"
-                      ${
-                        String(
-                          record?.customer_id ||
-                          ""
-                        ) ===
-                        String(
-                          customer.id
-                        )
-                          ? "selected"
-                          : ""
-                      }
-                    >
-                      ${escapeHtml(
-                        valueFor(
-                          customer,
-                          [
-                            "company_name",
-                            "name",
-                            "contact_person"
-                          ],
-                          `Customer #${customer.id}`
-                        )
-                      )}
-                    </option>
-                  `
-              )
-              .join("")}
-
-          </select>
-
-        </label>
-
-        <label>
-
-          Quotation Date
-
-          <input
-            type="date"
-            id="quotationDate"
-            name="quotation_date"
-            value="${quotationDate}"
-          >
-
-        </label>
-
-        <label>
-
-          Valid Until
-
-          <input
-            type="date"
-            id="quotationValidUntil"
-            name="valid_until"
-            value="${validUntil}"
-          >
-
-        </label>
-
-      </div>
-
-      <div
-        class="panel"
-        style="margin-top:20px"
-      >
-
-        <div
-          class="panel-header"
-        >
-
-          <h2>
-            Products / Items
-          </h2>
-
-          <button
-            type="button"
-            class="button-primary"
-            id="addQuotationItem"
-          >
-            + Add Product
-          </button>
-
-        </div>
-
-        <div class="panel-body">
-
-          <div
-            id="quotationItemsContainer"
-          ></div>
-
-        </div>
-
-      </div>
-
-      <div
-        class="quotation-summary"
-        style="margin-top:20px"
-      >
-
-        <div>
-
-          <span>
-            Subtotal
-          </span>
-
-          <strong
-            id="quotationSubtotal"
-          >
-            ₹0.00
-          </strong>
-
-        </div>
-
-        <div>
-
-          <span>
-            Total Item Discount
-          </span>
-
-          <strong
-            id="quotationDiscount"
-          >
-            ₹0.00
-          </strong>
-
-        </div>
-
-        <div>
-
-          <label>
-            Freight
-          </label>
-
-          <input
-            id="quotationFreight"
-            type="number"
-            step="0.01"
-            value="${escapeHtml(
-              record?.freight ?? 0
-            )}"
-          >
-
-        </div>
-
-        <div>
-
-          <span>
-            Taxable Amount
-          </span>
-
-          <strong
-            id="quotationTaxable"
-          >
-            ₹0.00
-          </strong>
-
-        </div>
-
-        <div>
-
-          <label>
-            GST %
-          </label>
-
-          <input
-            id="quotationGstPercent"
-            type="number"
-            step="0.01"
-            value="${escapeHtml(
-              record?.gst_percent ?? 18
-            )}"
-          >
-
-        </div>
-
-        <div>
-
-          <span>
-            GST Amount
-          </span>
-
-          <strong
-            id="quotationGstAmount"
-          >
-            ₹0.00
-          </strong>
-
-        </div>
-
-        <div
-          class="quotation-grand-total"
-        >
-
-          <span>
-            Grand Total
-          </span>
-
-          <strong
-            id="quotationGrandTotal"
-          >
-            ₹0.00
-          </strong>
-
-        </div>
-
-      </div>
-
-      <div
-        style="margin-top:20px"
-      >
-
-        <label>
-
-          Notes
-
-          <textarea
-            id="quotationNotes"
-            rows="4"
-            placeholder="Quotation notes"
-          >${escapeHtml(
-            record?.notes || ""
-          )}</textarea>
-
-        </label>
-
-      </div>
-
-      <div
-        class="modal-actions"
-      >
-
-        <button
-          type="button"
-          class="button-secondary"
-          id="quotationCancel"
-        >
-          Cancel
-        </button>
-
-        <button
-          type="submit"
-          class="button-primary"
-        >
-          ${
-            record
-              ? "Save Quotation"
-              : "Create Quotation"
-          }
-        </button>
-
-      </div>
-
-    </form>
-  `;
-}
-
-/* =========================================================
-   QUOTATION ITEM HTML
-========================================================= */
-
-function quotationItemHTML(
-  item,
-  index,
-  products
-) {
-
-  const productId =
-    item.product_id ||
-    item.productId ||
-    "";
-
-  const productName =
-    item.description ||
-    item.product_name ||
-    item.name ||
-    "";
-
-  return `
-
-    <div
-      class="quotation-item"
-      data-item-index="${index}"
-    >
-
-      <div
-        class="quotation-item-grid"
-      >
-
-        <label>
-
-          Product
-
-          <select
-            class="quotation-product"
-            data-field="product_id"
-          >
-
-            <option value="">
-              Select Product
-            </option>
-
-            ${products
-              .map(
-                product => {
-
-                  const name =
-                    valueFor(
-                      product,
-                      [
-                        "name",
-                        "product_name"
-                      ],
-                      `Product #${product.id}`
-                    );
-
-                  const rate =
-                    Number(
-                      valueFor(
-                        product,
-                        [
-                          "selling_price",
-                          "price",
-                          "rate"
-                        ],
-                        0
-                      )
-                    );
-
-                  return `
-                    <option
-                      value="${product.id}"
-                      data-rate="${rate}"
-                      data-name="${escapeHtml(
-                        name
-                      )}"
-                      ${
-                        String(
-                          productId
-                        ) ===
-                        String(
-                          product.id
-                        )
-                          ? "selected"
-                          : ""
-                      }
-                    >
-                      ${escapeHtml(
-                        name
-                      )}
-                    </option>
-                  `;
-                }
-              )
-              .join("")}
-
-          </select>
-
-        </label>
-
-        <label>
-
-          Description
-
-          <input
-            type="text"
-            class="quotation-description"
-            data-field="description"
-            value="${escapeHtml(
-              productName
-            )}"
-          >
-
-        </label>
-
-        <label>
-
-          Quantity
-
-          <input
-            type="number"
-            min="0"
-            step="any"
-            class="quotation-quantity"
-            data-field="quantity"
-            value="${escapeHtml(
-              item.quantity || 1
-            )}"
-          >
-
-        </label>
-
-        <label>
-
-          Rate
-
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            class="quotation-rate"
-            data-field="rate"
-            value="${escapeHtml(
-              item.rate || 0
-            )}"
-          >
-
-        </label>
-
-        <label>
-
-          Discount %
-
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            class="quotation-discount-percent"
-            data-field="discount_percent"
-            value="${escapeHtml(
-              item.discount_percent || 0
-            )}"
-          >
-
-        </label>
-
-        <label>
-
-          Discount Amount
-
-          <input
-            type="text"
-            class="quotation-discount-amount"
-            readonly
-            value="${formatCurrency(
-              item.discount_amount || 0
-            )}"
-          >
-
-        </label>
-
-        <label>
-
-          Net Amount
-
-          <input
-            type="text"
-            class="quotation-line-total"
-            readonly
-            value="${formatCurrency(
-              item.line_total || 0
-            )}"
-          >
-
-        </label>
-
-        <div
-          class="quotation-item-delete"
-        >
-
-          <button
-            type="button"
-            class="button-danger"
-            data-remove-item
-          >
-            Remove
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-}
-
-/* =========================================================
-   RENDER QUOTATION ITEMS
-========================================================= */
-
-function renderQuotationItems(
-  container,
-  products
-) {
-
-  if (
-    quotationItems.length === 0
-  ) {
-
-    container.innerHTML = `
-
-      <div class="empty">
-
-        <div class="empty-icon">
-          📦
-        </div>
-
-        No products added.
-
-        <br>
-
-        Click
-        <strong>
-          + Add Product
-        </strong>
-        to add a product.
-
-      </div>
-    `;
-
-    return;
-  }
-
-  container.innerHTML =
-    quotationItems
-      .map(
-        (item, index) =>
-          quotationItemHTML(
-            item,
-            index,
-            products
-          )
-      )
-      .join("");
-
-  container
-    .querySelectorAll(
-      "[data-remove-item]"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          () => {
-
-            const item =
-              button.closest(
-                ".quotation-item"
-              );
-
-            const index =
-              Number(
-                item.dataset
-                  .itemIndex
-              );
-
-            quotationItems.splice(
-              index,
-              1
-            );
-
-            renderQuotationItems(
-              container,
-              products
-            );
-
-            calculateQuotationTotals(
-              container
-            );
-          }
-        );
-      }
-    );
-
-  container
-    .querySelectorAll(
-      ".quotation-product"
-    )
-    .forEach(
-      select => {
-
-        select.addEventListener(
-          "change",
-          () => {
-
-            const item =
-              select.closest(
-                ".quotation-item"
-              );
-
-            const index =
-              Number(
-                item.dataset
-                  .itemIndex
-              );
-
-            const option =
-              select.options[
-                select.selectedIndex
-              ];
-
-            const rate =
-              Number(
-                option.dataset
-                  .rate || 0
-              );
-
-            const name =
-              option.dataset
-                .name || "";
-
-            quotationItems[
-              index
-            ].product_id =
-              select.value;
-
-            quotationItems[
-              index
-            ].description =
-              name;
-
-            quotationItems[
-              index
-            ].rate =
-              rate;
-
-            const description =
-              item.querySelector(
-                ".quotation-description"
-              );
-
-            const rateInput =
-              item.querySelector(
-                ".quotation-rate"
-              );
-
-            if (
-              description
-            ) {
-
-              description.value =
-                name;
-            }
-
-            if (
-              rateInput
-            ) {
-
-              rateInput.value =
-                rate;
-            }
-
-            calculateQuotationTotals(
-              container
-            );
-          }
-        );
-      }
-    );
-
-  container
-    .querySelectorAll(
-      ".quotation-description"
-    )
-    .forEach(
-      input => {
-
-        input.addEventListener(
-          "input",
-          () => {
-
-            const item =
-              input.closest(
-                ".quotation-item"
-              );
-
-            const index =
-              Number(
-                item.dataset
-                  .itemIndex
-              );
-
-            quotationItems[
-              index
-            ].description =
-              input.value;
-
-          }
-        );
-      }
-    );
-
-  container
-    .querySelectorAll(
-      ".quotation-quantity"
-    )
-    .forEach(
-      input => {
-
-        input.addEventListener(
-          "input",
-          () =>
-            calculateQuotationTotals(
-              container
-            )
-        );
-      }
-    );
-
-  container
-    .querySelectorAll(
-      ".quotation-rate"
-    )
-    .forEach(
-      input => {
-
-        input.addEventListener(
-          "input",
-          () =>
-            calculateQuotationTotals(
-              container
-            )
-        );
-      }
-    );
-
-  container
-    .querySelectorAll(
-      ".quotation-discount-percent"
-    )
-    .forEach(
-      input => {
-
-        input.addEventListener(
-          "input",
-          () =>
-            calculateQuotationTotals(
-              container
-            )
-        );
-      }
-    );
-
-  calculateQuotationTotals(
-    container
-  );
-}
-
-/* =========================================================
-   QUOTATION CALCULATION
-========================================================= */
-
-function calculateQuotationTotals(
-  container
-) {
-
-  let subtotal = 0;
-
-  let totalDiscount = 0;
-
-  quotationItems =
-    quotationItems.map(
-      (item, index) => {
-
-        const row =
-          container.querySelector(
-            `[data-item-index="${index}"]`
-          );
-
-        if (!row) {
-          return item;
-        }
-
-        const qty =
-          Number(
-            row.querySelector(
-              ".quotation-quantity"
-            )?.value || 0
-          );
-
-        const rate =
-          Number(
-            row.querySelector(
-              ".quotation-rate"
-            )?.value || 0
-          );
-
-        const discountPercent =
-          Number(
-            row.querySelector(
-              ".quotation-discount-percent"
-            )?.value || 0
-          );
-
-        /*
-         * GROSS PRODUCT VALUE
-         */
-        const lineSubtotal =
-          qty * rate;
-
-        /*
-         * INDIVIDUAL PRODUCT DISCOUNT
-         */
-        const discountAmount =
-          lineSubtotal *
-          discountPercent /
-          100;
-
-        /*
-         * NET PRODUCT VALUE
-         */
-        const lineTotal =
-          lineSubtotal -
-          discountAmount;
-
-        subtotal +=
-          lineSubtotal;
-
-        totalDiscount +=
-          discountAmount;
-
-        const discountInput =
-          row.querySelector(
-            ".quotation-discount-amount"
-          );
-
-        const totalInput =
-          row.querySelector(
-            ".quotation-line-total"
-          );
-
-        if (
-          discountInput
-        ) {
-
-          discountInput.value =
-            formatCurrency(
-              discountAmount
-            );
-        }
-
-        if (
-          totalInput
-        ) {
-
-          totalInput.value =
-            formatCurrency(
-              lineTotal
-            );
-        }
-
-        return {
-
-          ...item,
-
-          quantity: qty,
-
-          rate: rate,
-
-          discount_percent:
-            discountPercent,
-
-          line_subtotal:
-            Number(
-              lineSubtotal.toFixed(
-                2
-              )
-            ),
-
-          discount_amount:
-            Number(
-              discountAmount.toFixed(
-                2
-              )
-            ),
-
-          line_total:
-            Number(
-              lineTotal.toFixed(
-                2
-              )
-            )
-        };
-      }
-    );
-
-  /*
-   * FREIGHT
-   */
-
-  const freight =
-    Number(
-      document.getElementById(
-        "quotationFreight"
-      )?.value || 0
-    );
-
-  /*
-   * GST
-   */
-
-  const gstPercent =
-    Number(
-      document.getElementById(
-        "quotationGstPercent"
-      )?.value || 18
-    );
-
-  /*
-   * AFTER ALL INDIVIDUAL DISCOUNTS
-   */
-
-  const afterDiscount =
-    subtotal -
-    totalDiscount;
-
-  /*
-   * ADD FREIGHT
-   */
-
-  const taxableAmount =
-    afterDiscount +
-    freight;
-
-  /*
-   * GST
-   */
-
-  const gstAmount =
-    taxableAmount *
-    gstPercent /
-    100;
-
-  /*
-   * FINAL TOTAL
-   */
-
-  const grandTotal =
-    taxableAmount +
-    gstAmount;
-
-  /*
-   * UPDATE SUMMARY
-   */
-
-  const subtotalElement =
-    document.getElementById(
-      "quotationSubtotal"
-    );
-
-  const discountElement =
-    document.getElementById(
-      "quotationDiscount"
-    );
-
-  const taxableElement =
-    document.getElementById(
-      "quotationTaxable"
-    );
-
-  const gstElement =
-    document.getElementById(
-      "quotationGstAmount"
-    );
-
-  const grandElement =
-    document.getElementById(
-      "quotationGrandTotal"
-    );
-
-  if (
-    subtotalElement
-  ) {
-
-    subtotalElement.textContent =
-      formatCurrency(
-        subtotal
-      );
-  }
-
-  if (
-    discountElement
-  ) {
-
-    discountElement.textContent =
-      formatCurrency(
-        totalDiscount
-      );
-  }
-
-  if (
-    taxableElement
-  ) {
-
-    taxableElement.textContent =
-      formatCurrency(
-        taxableAmount
-      );
-  }
-
-  if (
-    gstElement
-  ) {
-
-    gstElement.textContent =
-      formatCurrency(
-        gstAmount
-      );
-  }
-
-  if (
-    grandElement
-  ) {
-
-    grandElement.textContent =
-      formatCurrency(
-        grandTotal
-      );
-  }
-
-  return {
-
-    subtotal,
-
-    totalDiscount,
-
-    freight,
-
-    taxableAmount,
-
-    gstPercent,
-
-    gstAmount,
-
-    grandTotal
-  };
-}
-
-/* =========================================================
-   SETUP QUOTATION MODAL
-========================================================= */
-
-function setupQuotationModal(
-  modal,
-  record,
-  customers,
-  products
-) {
-
-  const container =
-    modal.host.querySelector(
-      "#quotationItemsContainer"
-    );
-
-  const addButton =
-    modal.host.querySelector(
-      "#addQuotationItem"
-    );
-
-  /*
-   Generate quotation number
-   for new quotation.
-  */
-
-  if (
-    !record
-  ) {
-
-    apiGet(
-      "/quotations/next-number"
-    )
-      .then(
-        result => {
-
-          const input =
-            modal.host.querySelector(
-              "#quotationNumber"
-            );
-
+    .onsubmit =
+    async event => {
+      event.preventDefault();
+
+      const data = {};
+
+      new FormData(
+        event.target
+      ).forEach(
+        (value, key) => {
           if (
-            input &&
-            !input.value
+            String(
+              value
+            ).trim() === ""
           ) {
-
-            input.value =
-              result.quotation_number ||
-              "";
-          }
-        }
-      )
-      .catch(
-        error =>
-          console.warn(
-            "Quotation number generation failed",
-            error
-          )
-      );
-  }
-
-  /*
-   Add product
-  */
-
-  addButton.addEventListener(
-    "click",
-    () => {
-
-      quotationItems.push({
-
-        product_id: "",
-
-        description: "",
-
-        quantity: 1,
-
-        rate: 0,
-
-        discount_percent: 0,
-
-        discount_amount: 0,
-
-        line_subtotal: 0,
-
-        line_total: 0
-      });
-
-      renderQuotationItems(
-        container,
-        products
-      );
-    }
-  );
-
-  /*
-   Freight change
-  */
-
-  modal.host
-    .querySelector(
-      "#quotationFreight"
-    )
-    .addEventListener(
-      "input",
-      () =>
-        calculateQuotationTotals(
-          container
-        )
-    );
-
-  /*
-   GST change
-  */
-
-  modal.host
-    .querySelector(
-      "#quotationGstPercent"
-    )
-    .addEventListener(
-      "input",
-      () =>
-        calculateQuotationTotals(
-          container
-        )
-    );
-
-  /*
-   Cancel
-  */
-
-  modal.host
-    .querySelector(
-      "#quotationCancel"
-    )
-    .addEventListener(
-      "click",
-      modal.close
-    );
-
-  /*
-   Initial items
-  */
-
-  renderQuotationItems(
-    container,
-    products
-  );
-
-  /*
-   Submit quotation
-  */
-
-  modal.host
-    .querySelector(
-      "#quotationForm"
-    )
-    .addEventListener(
-      "submit",
-      async event => {
-
-        event.preventDefault();
-
-        try {
-
-          if (
-            quotationItems.length === 0
-          ) {
-
-            notify(
-              "Please add at least one product.",
-              "error"
-            );
-
             return;
           }
 
-          /*
-           Recalculate one final time.
-          */
+          data[key] =
+            /id$|amount|price|total|quantity|stock|percent|freight|gst|rate/.test(
+              key
+            )
+              ? Number(value)
+              : value;
+        }
+      );
 
-          const totals =
-            calculateQuotationTotals(
-              container
-            );
-
-          /*
-           Read form data
-          */
-
-          const quotationNumber =
-            modal.host.querySelector(
-              "#quotationNumber"
-            ).value.trim();
-
-          const customerId =
-            modal.host.querySelector(
-              "#quotationCustomer"
-            ).value;
-
-          const quotationDate =
-            modal.host.querySelector(
-              "#quotationDate"
-            ).value;
-
-          const validUntil =
-            modal.host.querySelector(
-              "#quotationValidUntil"
-            ).value;
-
-          const notes =
-            modal.host.querySelector(
-              "#quotationNotes"
-            ).value;
-
-          const freight =
-            Number(
-              modal.host.querySelector(
-                "#quotationFreight"
-              ).value || 0
-            );
-
-          const gstPercent =
-            Number(
-              modal.host.querySelector(
-                "#quotationGstPercent"
-              ).value || 18
-            );
-
-          /*
-           =================================================
-           QUOTATION HEADER
-           =================================================
-          */
-
-          const quotationPayload = {
-
-            quotation_number:
-              quotationNumber,
-
-            customer_id:
-              customerId
-                ? Number(customerId)
-                : null,
-
-            quotation_date:
-              quotationDate,
-
-            valid_until:
-              validUntil || null,
-
-            status:
-              record?.status ||
-              "Draft",
-
-            subtotal:
-              Number(
-                totals.subtotal.toFixed(
-                  2
-                )
-              ),
-
-            /*
-             IMPORTANT:
-             This is now the TOTAL
-             of all individual
-             product discounts.
-            */
-
-            discount_percent: 0,
-
-            discount_amount:
-              Number(
-                totals.totalDiscount.toFixed(
-                  2
-                )
-              ),
-
-            discount:
-              Number(
-                totals.totalDiscount.toFixed(
-                  2
-                )
-              ),
-
-            freight:
-              Number(
-                freight.toFixed(
-                  2
-                )
-              ),
-
-            taxable_amount:
-              Number(
-                totals.taxableAmount.toFixed(
-                  2
-                )
-              ),
-
-            gst_percent:
-              Number(
-                gstPercent.toFixed(
-                  2
-                )
-              ),
-
-            gst_amount:
-              Number(
-                totals.gstAmount.toFixed(
-                  2
-                )
-              ),
-
-            grand_total:
-              Number(
-                totals.grandTotal.toFixed(
-                  2
-                )
-              ),
-
-            notes
-          };
-
-          let quotationId;
-
-          /*
-           =================================================
-           CREATE / UPDATE QUOTATION
-           =================================================
-          */
-
-          if (record) {
-
-            await apiPut(
-              `/quotations/${record.id}`,
-              quotationPayload
-            );
-
-            quotationId =
-              record.id;
-
-          } else {
-
-            const result =
-              await apiPost(
-                "/quotations",
-                quotationPayload
-              );
-
-            quotationId =
-              result.id;
-          }
-
-          if (!quotationId) {
-
-            throw new Error(
-              "Quotation was saved but quotation ID was not returned."
-            );
-          }
-
-          /*
-           =================================================
-           SAVE QUOTATION ITEMS
-           =================================================
-
-           IMPORTANT:
-           Every item gets its own:
-
-           discount_percent
-           discount_amount
-           line_subtotal
-           line_total
-          */
-
-          if (
-            record
-          ) {
-
-            /*
-             For editing, existing items
-             need to be updated where possible.
-            */
-
-            const existingResult =
-              await apiGet(
-                `/quotations/${quotationId}/items`
-              );
-
-            const existingItems =
-              existingResult.items ||
-              [];
-
-            /*
-             Update existing rows and
-             create new rows.
-            */
-
-            for (
-              let index = 0;
-              index <
-              quotationItems.length;
-              index++
-            ) {
-
-              const item =
-                quotationItems[
-                  index
-                ];
-
-              const payload =
-                quotationItemPayload(
-                  item,
-                  quotationId
-                );
-
-              if (
-                item.id
-              ) {
-
-                await apiPut(
-                  `/quotation_items/${item.id}`,
-                  payload
-                );
-
-              } else {
-
-                await apiPost(
-                  `/quotations/${quotationId}/items`,
-                  payload
-                );
-              }
-            }
-
-            /*
-             Delete old items that were
-             removed from the quotation.
-            */
-
-            const currentIds =
-              new Set(
-                quotationItems
-                  .filter(
-                    item =>
-                      item.id
-                  )
-                  .map(
-                    item =>
-                      String(
-                        item.id
-                      )
-                  )
-              );
-
-            for (
-              const oldItem
-              of existingItems
-            ) {
-
-              if (
-                oldItem.id &&
-                !currentIds.has(
-                  String(
-                    oldItem.id
-                  )
-                )
-              ) {
-
-                await apiDelete(
-                  `/quotation_items/${oldItem.id}`
-                );
-              }
-            }
-
-          } else {
-
-            /*
-             New quotation:
-             simply create all items.
-            */
-
-            for (
-              const item
-              of quotationItems
-            ) {
-
-              await apiPost(
-                `/quotations/${quotationId}/items`,
-                quotationItemPayload(
-                  item,
-                  quotationId
-                )
-              );
-            }
-          }
-
-          notify(
-            `Quotation ${
-              quotationNumber ||
-              ""
-            } saved successfully.`
+      try {
+        if (record) {
+          await put(
+            `/${table}/${record.id}`,
+            data
           );
-
-          modal.close();
-
-          showPage(
-            "quotations"
-          );
-
-        } catch (error) {
-
-          console.error(
-            "SAVE QUOTATION ERROR:",
-            error
-          );
-
-          notify(
-            error.message,
-            "error"
+        } else {
+          await post(
+            `/${table}`,
+            data
           );
         }
-      }
-    );
-}
 
-/* =========================================================
-   QUOTATION ITEM PAYLOAD
-========================================================= */
+        m.close();
 
-function quotationItemPayload(
-  item,
-  quotationId
-) {
+        toast(
+          "Saved successfully"
+        );
 
-  const quantity =
-    Number(
-      item.quantity || 0
-    );
+        showPage(
+          table
+        );
 
-  const rate =
-    Number(
-      item.rate || 0
-    );
-
-  const discountPercent =
-    Number(
-      item.discount_percent || 0
-    );
-
-  const lineSubtotal =
-    quantity * rate;
-
-  const discountAmount =
-    lineSubtotal *
-    discountPercent /
-    100;
-
-  const lineTotal =
-    lineSubtotal -
-    discountAmount;
-
-  return {
-
-    quotation_id:
-      Number(quotationId),
-
-    product_id:
-      item.product_id
-        ? Number(
-            item.product_id
-          )
-        : null,
-
-    description:
-      item.description ||
-      "",
-
-    quantity,
-
-    rate,
-
-    discount_percent:
-      discountPercent,
-
-    discount_amount:
-      Number(
-        discountAmount.toFixed(
-          2
-        )
-      ),
-
-    /*
-     * Include common field names.
-     * The server will reject fields
-     * that don't exist in your table.
-     */
-
-    line_subtotal:
-      Number(
-        lineSubtotal.toFixed(
-          2
-        )
-      ),
-
-    line_total:
-      Number(
-        lineTotal.toFixed(
-          2
-        )
-      )
-  };
-}
-
-/* =========================================================
-   DETAIL MODAL
-========================================================= */
-
-function openDetailModal(
-  table,
-  record,
-  records
-) {
-
-  /*
-   Quotation gets a detailed
-   quotation view.
-  */
-
-  if (
-    table === "quotations"
-  ) {
-
-    return openQuotationDetail(
-      record
-    );
-  }
-
-  const details =
-    Object.entries(record)
-      .filter(
-        ([key]) =>
-          !isSystemField(key)
-      )
-      .map(
-        ([key, value]) =>
-          `
-            <div class="detail-item">
-
-              <div
-                class="detail-label"
-              >
-                ${escapeHtml(
-                  humanize(key)
-                )}
-              </div>
-
-              <div
-                class="detail-value"
-              >
-                ${cellValue(
-                  value,
-                  key
-                )}
-              </div>
-
-            </div>
-          `
-      )
-      .join("");
-
-  const modal =
-    openModal(
-      `${titleFor(
-        table
-      )} #${record.id}`,
-
-      `
-        <div
-          class="detail-grid"
-        >
-          ${details}
-        </div>
-
-        <div
-          class="modal-actions"
-        >
-
-          <button
-            type="button"
-            class="button-secondary"
-            data-close
-          >
-            Close
-          </button>
-
-          <button
-            type="button"
-            class="button-primary"
-            data-edit
-          >
-            Edit
-          </button>
-
-        </div>
-      `,
-
-      "modal-large"
-    );
-
-  modal.host
-    .querySelector(
-      "[data-close]"
-    )
-    .addEventListener(
-      "click",
-      modal.close
-    );
-
-  modal.host
-    .querySelector(
-      "[data-edit]"
-    )
-    .addEventListener(
-      "click",
-      () => {
-
-        modal.close();
-
-        openRecordModal(
-          table,
-          record,
-          records
+      } catch (error) {
+        toast(
+          error.message,
+          true
         );
       }
-    );
-}
-
-/* =========================================================
-   QUOTATION DETAIL
-========================================================= */
-
-async function openQuotationDetail(
-  record
-) {
-
-  const modal =
-    openModal(
-      `Quotation ${
-        record.quotation_number ||
-        `#${record.id}`
-      }`,
-
-      `
-        <div class="loading">
-          Loading quotation...
-        </div>
-      `,
-
-      "modal-xl"
-    );
-
-  try {
-
-    const result =
-      await apiGet(
-        `/quotations/${record.id}/details`
-      );
-
-    const quotation =
-      result.quotation ||
-      record;
-
-    const items =
-      result.items ||
-      [];
-
-    modal.host.querySelector(
-      ".modal-body"
-    ).innerHTML = `
-
-      <div
-        class="quotation-detail-header"
-      >
-
-        <div>
-
-          <strong>
-            Quotation No.
-          </strong>
-
-          <div>
-            ${escapeHtml(
-              quotation.quotation_number ||
-              `#${quotation.id}`
-            )}
-          </div>
-
-        </div>
-
-        <div>
-
-          <strong>
-            Customer
-          </strong>
-
-          <div>
-            ${escapeHtml(
-              quotation.customer_id ||
-              "—"
-            )}
-          </div>
-
-        </div>
-
-        <div>
-
-          <strong>
-            Date
-          </strong>
-
-          <div>
-            ${formatDate(
-              quotation.quotation_date
-            )}
-          </div>
-
-        </div>
-
-      </div>
-
-      <div
-        class="table-wrapper"
-        style="margin-top:20px"
-      >
-
-        <table>
-
-          <thead>
-
-            <tr>
-
-              <th>
-                Product
-              </th>
-
-              <th>
-                Qty
-              </th>
-
-              <th>
-                Rate
-              </th>
-
-              <th>
-                Discount %
-              </th>
-
-              <th>
-                Discount
-              </th>
-
-              <th>
-                Net Amount
-              </th>
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            ${
-              items.length
-                ? items
-                    .map(
-                      item => {
-
-                        const normalized =
-                          normalizeQuotationItem(
-                            item
-                          );
-
-                        return `
-                          <tr>
-
-                            <td>
-                              ${escapeHtml(
-                                normalized.description ||
-                                normalized.product_name ||
-                                normalized.name ||
-                                "—"
-                              )}
-                            </td>
-
-                            <td>
-                              ${escapeHtml(
-                                normalized.quantity
-                              )}
-                            </td>
-
-                            <td>
-                              ${formatCurrency(
-                                normalized.rate
-                              )}
-                            </td>
-
-                            <td>
-                              ${escapeHtml(
-                                normalized.discount_percent
-                              )}%
-                            </td>
-
-                            <td>
-                              ${formatCurrency(
-                                normalized.discount_amount
-                              )}
-                            </td>
-
-                            <td>
-                              ${formatCurrency(
-                                normalized.line_total
-                              )}
-                            </td>
-
-                          </tr>
-                        `;
-                      }
-                    )
-                    .join("")
-                : `
-                  <tr>
-                    <td
-                      colspan="6"
-                      style="text-align:center"
-                    >
-                      No quotation items
-                    </td>
-                  </tr>
-                `
-            }
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-      <div
-        class="quotation-summary"
-        style="margin-top:20px"
-      >
-
-        <div>
-
-          <span>
-            Subtotal
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.subtotal
-            )}
-          </strong>
-
-        </div>
-
-        <div>
-
-          <span>
-            Total Item Discount
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.discount_amount ||
-              quotation.discount ||
-              0
-            )}
-          </strong>
-
-        </div>
-
-        <div>
-
-          <span>
-            Freight
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.freight
-            )}
-          </strong>
-
-        </div>
-
-        <div>
-
-          <span>
-            Taxable Amount
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.taxable_amount
-            )}
-          </strong>
-
-        </div>
-
-        <div>
-
-          <span>
-            GST ${
-              quotation.gst_percent ||
-              18
-            }%
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.gst_amount
-            )}
-          </strong>
-
-        </div>
-
-        <div
-          class="quotation-grand-total"
-        >
-
-          <span>
-            Grand Total
-          </span>
-
-          <strong>
-            ${formatCurrency(
-              quotation.grand_total
-            )}
-          </strong>
-
-        </div>
-
-      </div>
-
-      <div
-        class="modal-actions"
-        style="margin-top:20px"
-      >
-
-        <button
-          type="button"
-          class="button-secondary"
-          data-close
-        >
-          Close
-        </button>
-
-        <button
-          type="button"
-          class="button-primary"
-          data-edit
-        >
-          Edit Quotation
-        </button>
-
-      </div>
-    `;
-
-    modal.host
-      .querySelector(
-        "[data-close]"
-      )
-      .addEventListener(
-        "click",
-        modal.close
-      );
-
-    modal.host
-      .querySelector(
-        "[data-edit]"
-      )
-      .addEventListener(
-        "click",
-        () => {
-
-          modal.close();
-
-          openQuotationModal(
-            quotation,
-            []
-          );
-        }
-      );
-
-  } catch (error) {
-
-    modal.host.querySelector(
-      ".modal-body"
-    ).innerHTML = `
-
-      <div class="empty">
-
-        <div class="empty-icon">
-          ⚠️
-        </div>
-
-        <h3>
-          Unable to load quotation
-        </h3>
-
-        <p>
-          ${escapeHtml(
-            error.message
-          )}
-        </p>
-
-      </div>
-    `;
-  }
+    };
 }
 
 /* =========================================================
@@ -4409,187 +1228,2108 @@ async function deleteRecord(
   table,
   record
 ) {
-
   if (
-    !window.confirm(
-      `Delete this ${titleFor(
-        table
-      ).toLowerCase()}? This cannot be undone.`
+    !confirm(
+      "Delete this record?"
     )
   ) {
-
     return;
   }
 
   try {
-
-    await apiDelete(
+    await del(
       `/${table}/${record.id}`
     );
 
-    notify(
-      `${titleFor(
-        table
-      )} deleted.`
+    toast(
+      "Deleted successfully"
     );
 
-    showPage(table);
+    showPage(
+      table
+    );
 
   } catch (error) {
-
-    notify(
+    toast(
       error.message,
-      "error"
+      true
     );
   }
 }
 
 /* =========================================================
-   SIMPLE TABLE
+   QUOTATION ITEM ROW
+
+   Individual discount
 ========================================================= */
 
-async function renderSimpleTable(
-  table
+function quotationItemRow(
+  item = {}
 ) {
+  const quantity =
+    Number(
+      item.quantity ||
+      item.qty ||
+      1
+    );
 
-  return renderEntityPage(
-    table,
-    {
-      search: true
+  const rate =
+    Number(
+      item.rate ??
+      item.unit_price ??
+      item.price ??
+      0
+    );
+
+  const discountPercent =
+    Number(
+      item.discount_percent ||
+      0
+    );
+
+  const gross =
+    quantity * rate;
+
+  const discountAmount =
+    gross *
+    discountPercent /
+    100;
+
+  const net =
+    gross -
+    discountAmount;
+
+  return `
+    <tr
+      data-item
+    >
+
+      <td>
+
+        <input
+          class="item-desc"
+          value="${esc(
+            item.description ||
+            item.product_name ||
+            item.name ||
+            ""
+          )}"
+          placeholder="Product / description"
+        >
+
+      </td>
+
+      <td>
+
+        <input
+          class="item-qty"
+          type="number"
+          min="0"
+          step="any"
+          value="${quantity}"
+        >
+
+      </td>
+
+      <td>
+
+        <input
+          class="item-rate"
+          type="number"
+          min="0"
+          step="any"
+          value="${rate}"
+        >
+
+      </td>
+
+      <td>
+
+        <input
+          class="item-discount-percent"
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          value="${discountPercent}"
+        >
+
+      </td>
+
+      <td>
+
+        <strong
+          class="item-discount-amount"
+        >
+          ${money(
+            discountAmount
+          )}
+        </strong>
+
+      </td>
+
+      <td>
+
+        <strong
+          class="item-net"
+        >
+          ${money(net)}
+        </strong>
+
+      </td>
+
+      <td>
+
+        <button
+          type="button"
+          class="remove-item"
+        >
+          Remove
+        </button>
+
+      </td>
+
+    </tr>
+  `;
+}
+
+/* =========================================================
+   QUOTATION EDITOR
+========================================================= */
+
+async function quotationEditor(
+  record = null
+) {
+  loading(
+    "Preparing quotation..."
+  );
+
+  const [
+    customers,
+    products
+  ] =
+    await Promise.all([
+      list("customers"),
+      list("products")
+    ]);
+
+  let items = [];
+
+  if (record) {
+    try {
+      const details =
+        await get(
+          `/quotations/${record.id}/details`
+        );
+
+      items =
+        details.items || [];
+
+    } catch (error) {
+      console.warn(
+        "Quotation items error",
+        error
+      );
     }
+  }
+
+  const q =
+    record || {};
+
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0, 10);
+
+  const customerOptions =
+    customers
+      .map(
+        customer =>
+          `
+          <option
+            value="${customer.id}"
+            ${
+              String(
+                customer.id
+              ) ===
+              String(
+                q.customer_id
+              )
+                ? "selected"
+                : ""
+            }
+          >
+            ${esc(
+              customer.company_name ||
+              customer.contact_person ||
+              `Customer #${customer.id}`
+            )}
+          </option>
+          `
+      )
+      .join("");
+
+  const productOptions =
+    products
+      .map(
+        product =>
+          `
+          <option
+            value="${product.id}"
+            data-name="${esc(
+              product.name || ""
+            )}"
+            data-rate="${Number(
+              product.selling_price ||
+              0
+            )}"
+          >
+            ${esc(
+              product.name ||
+              `Product #${product.id}`
+            )}
+          </option>
+          `
+      )
+      .join("");
+
+  const m =
+    modal(
+      `${
+        record
+          ? "Edit"
+          : "New"
+      } Quotation`,
+
+      `
+      <form id="quotationForm">
+
+        <div
+          class="quote-top-grid"
+        >
+
+          <label>
+            Quotation Number
+
+            <input
+              readonly
+              value="${esc(
+                q.quotation_number ||
+                "Auto-generated on save"
+              )}"
+            >
+          </label>
+
+          <label>
+            Customer
+
+            <select
+              name="customer_id"
+              required
+            >
+              <option value="">
+                Select customer
+              </option>
+
+              ${customerOptions}
+
+            </select>
+          </label>
+
+          <label>
+            Quotation Date
+
+            <input
+              name="quotation_date"
+              type="date"
+              value="${esc(
+                String(
+                  q.quotation_date ||
+                  today
+                ).slice(
+                  0,
+                  10
+                )
+              )}"
+            >
+          </label>
+
+          <label>
+            Valid Until
+
+            <input
+              name="valid_until"
+              type="date"
+              value="${esc(
+                q.valid_until
+                  ? String(
+                      q.valid_until
+                    ).slice(
+                      0,
+                      10
+                    )
+                  : ""
+              )}"
+            >
+          </label>
+
+        </div>
+
+        <div
+          class="quote-section"
+        >
+
+          <div
+            class="section-title-row"
+          >
+
+            <h3>
+              Products / Items
+            </h3>
+
+            <button
+              type="button"
+              id="addItem"
+            >
+              + Add Product
+            </button>
+
+          </div>
+
+          <div
+            class="table-wrapper"
+          >
+
+            <table
+              class="quote-items-table"
+            >
+
+              <thead>
+                <tr>
+
+                  <th>
+                    Product
+                  </th>
+
+                  <th>
+                    Description
+                  </th>
+
+                  <th>
+                    Quantity
+                  </th>
+
+                  <th>
+                    Rate
+                  </th>
+
+                  <th>
+                    Discount %
+                  </th>
+
+                  <th>
+                    Discount Amount
+                  </th>
+
+                  <th>
+                    Net Amount
+                  </th>
+
+                  <th>
+                    Action
+                  </th>
+
+                </tr>
+              </thead>
+
+              <tbody
+                id="quotationItems"
+              >
+
+                ${
+                  items.length
+                    ? items
+                        .map(
+                          quotationItemRow
+                        )
+                        .join("")
+                    : quotationItemRow()
+                }
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+        <div
+          class="quote-summary"
+        >
+
+          <div></div>
+
+          <div
+            class="quote-summary-box"
+          >
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                Subtotal
+              </span>
+
+              <strong
+                id="summarySubtotal"
+              >
+                ₹0.00
+              </strong>
+            </div>
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                Total Item Discount
+              </span>
+
+              <strong
+                id="summaryDiscount"
+              >
+                ₹0.00
+              </strong>
+            </div>
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                Freight
+              </span>
+
+              <input
+                id="freight"
+                name="freight"
+                type="number"
+                min="0"
+                step="0.01"
+                value="${Number(
+                  q.freight || 0
+                )}"
+              >
+            </div>
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                Taxable Amount
+              </span>
+
+              <strong
+                id="summaryTaxable"
+              >
+                ₹0.00
+              </strong>
+            </div>
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                GST %
+              </span>
+
+              <input
+                id="gstPercent"
+                name="gst_percent"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value="${Number(
+                  q.gst_percent ??
+                  18
+                )}"
+              >
+            </div>
+
+            <div
+              class="summary-line"
+            >
+              <span>
+                GST Amount
+              </span>
+
+              <strong
+                id="summaryGST"
+              >
+                ₹0.00
+              </strong>
+            </div>
+
+            <div
+              class="grand-total-line"
+            >
+              <span>
+                Grand Total
+              </span>
+
+              <strong
+                id="summaryGrand"
+              >
+                ₹0.00
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <label
+          class="full-field"
+        >
+          Notes
+
+          <textarea
+            name="notes"
+          >${esc(
+            q.notes || ""
+          )}</textarea>
+
+        </label>
+
+        <div
+          class="modal-actions"
+        >
+
+          <button
+            type="button"
+            id="closeQuotation"
+          >
+            Cancel
+          </button>
+
+          <button
+            class="button-primary"
+            id="saveQuotation"
+          >
+            ${
+              record
+                ? "Save Changes"
+                : "Save Quotation"
+            }
+          </button>
+
+        </div>
+
+      </form>
+      `,
+
+      "modal-xlarge"
+    );
+
+  const form =
+    m.host.querySelector(
+      "#quotationForm"
+    );
+
+  const itemsBody =
+    m.host.querySelector(
+      "#quotationItems"
+    );
+
+  /* =====================================================
+     CALCULATE QUOTATION
+  ===================================================== */
+
+  function calculate() {
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let netSubtotal = 0;
+
+    itemsBody
+      .querySelectorAll(
+        "[data-item]"
+      )
+      .forEach(row => {
+        const quantity =
+          Number(
+            row.querySelector(
+              ".item-qty"
+            ).value
+          ) || 0;
+
+        const rate =
+          Number(
+            row.querySelector(
+              ".item-rate"
+            ).value
+          ) || 0;
+
+        const discountPercent =
+          Math.max(
+            0,
+            Math.min(
+              100,
+              Number(
+                row.querySelector(
+                  ".item-discount-percent"
+                ).value
+              ) || 0
+            )
+          );
+
+        const gross =
+          quantity * rate;
+
+        const discount =
+          gross *
+          discountPercent /
+          100;
+
+        const net =
+          gross -
+          discount;
+
+        subtotal +=
+          gross;
+
+        totalDiscount +=
+          discount;
+
+        netSubtotal +=
+          net;
+
+        row.querySelector(
+          ".item-discount-amount"
+        ).textContent =
+          money(discount);
+
+        row.querySelector(
+          ".item-net"
+        ).textContent =
+          money(net);
+      });
+
+    const freight =
+      Math.max(
+        0,
+        Number(
+          $("freight").value
+        ) || 0
+      );
+
+    const taxable =
+      netSubtotal +
+      freight;
+
+    const gstPercent =
+      Math.max(
+        0,
+        Math.min(
+          100,
+          Number(
+            $("gstPercent")
+              .value
+          ) || 0
+        )
+      );
+
+    const gst =
+      taxable *
+      gstPercent /
+      100;
+
+    const grand =
+      taxable +
+      gst;
+
+    $("summarySubtotal")
+      .textContent =
+      money(subtotal);
+
+    $("summaryDiscount")
+      .textContent =
+      money(totalDiscount);
+
+    $("summaryTaxable")
+      .textContent =
+      money(taxable);
+
+    $("summaryGST")
+      .textContent =
+      money(gst);
+
+    $("summaryGrand")
+      .textContent =
+      money(grand);
+
+    return {
+      subtotal,
+      totalDiscount,
+      netSubtotal,
+      freight,
+      taxable,
+      gstPercent,
+      gst,
+      grand
+    };
+  }
+
+  /* =====================================================
+     EVENTS
+  ===================================================== */
+
+  itemsBody.oninput =
+    calculate;
+
+  $("freight").oninput =
+    calculate;
+
+  $("gstPercent").oninput =
+    calculate;
+
+  itemsBody.onclick =
+    event => {
+      const remove =
+        event.target.closest(
+          ".remove-item"
+        );
+
+      if (!remove) {
+        return;
+      }
+
+      const row =
+        remove.closest(
+          "[data-item]"
+        );
+
+      if (row) {
+        row.remove();
+      }
+
+      if (
+        !itemsBody.querySelector(
+          "[data-item]"
+        )
+      ) {
+        itemsBody.insertAdjacentHTML(
+          "beforeend",
+          quotationItemRow()
+        );
+      }
+
+      calculate();
+    };
+
+  m.host
+    .querySelector(
+      "#addItem"
+    )
+    .onclick =
+    () => {
+      itemsBody.insertAdjacentHTML(
+        "beforeend",
+        quotationItemRow()
+      );
+
+      calculate();
+    };
+
+  m.host
+    .querySelector(
+      "#closeQuotation"
+    )
+    .onclick =
+    m.close;
+
+  /* =====================================================
+     SAVE QUOTATION
+  ===================================================== */
+
+  form.onsubmit =
+    async event => {
+      event.preventDefault();
+
+      const button =
+        $("saveQuotation");
+
+      button.disabled =
+        true;
+
+      button.textContent =
+        "Saving...";
+
+      try {
+        const totals =
+          calculate();
+
+        const formData =
+          new FormData(
+            form
+          );
+
+        const quotationData = {
+          customer_id:
+            Number(
+              formData.get(
+                "customer_id"
+              )
+            ),
+
+          quotation_date:
+            formData.get(
+              "quotation_date"
+            ),
+
+          valid_until:
+            formData.get(
+              "valid_until"
+            ) || null,
+
+          status:
+            "Draft",
+
+          subtotal:
+            totals.subtotal,
+
+          discount_percent:
+            0,
+
+          discount_amount:
+            totals.totalDiscount,
+
+          discount:
+            totals.totalDiscount,
+
+          freight:
+            totals.freight,
+
+          taxable_amount:
+            totals.taxable,
+
+          gst_percent:
+            totals.gstPercent,
+
+          gst_amount:
+            totals.gst,
+
+          grand_total:
+            totals.grand,
+
+          notes:
+            formData.get(
+              "notes"
+            ) || ""
+        };
+
+        let saved;
+
+        if (record) {
+          saved =
+            await put(
+              `/quotations/${record.id}`,
+              quotationData
+            );
+        } else {
+          saved =
+            await post(
+              "/quotations",
+              quotationData
+            );
+        }
+
+        const quotationId =
+          record
+            ? record.id
+            : saved.id;
+
+        /* ==============================================
+           SAVE ITEMS
+        ============================================== */
+
+        if (record) {
+          /*
+             For now, existing quotation editing
+             uses the current item records.
+
+             New item saving is handled below.
+          */
+        }
+
+        const rows =
+          itemsBody.querySelectorAll(
+            "[data-item]"
+          );
+
+        for (
+          const row of rows
+        ) {
+          const description =
+            row.querySelector(
+              ".item-desc"
+            ).value.trim();
+
+          const quantity =
+            Number(
+              row.querySelector(
+                ".item-qty"
+              ).value
+            ) || 0;
+
+          const rate =
+            Number(
+              row.querySelector(
+                ".item-rate"
+              ).value
+            ) || 0;
+
+          const discountPercent =
+            Number(
+              row.querySelector(
+                ".item-discount-percent"
+              ).value
+            ) || 0;
+
+          if (
+            !description &&
+            quantity === 0 &&
+            rate === 0
+          ) {
+            continue;
+          }
+
+          /*
+             Existing item:
+             update it.
+
+             New item:
+             create it.
+          */
+
+          const existingId =
+            row.dataset.itemId;
+
+          const gross =
+            quantity *
+            rate;
+
+          const discountAmount =
+            gross *
+            discountPercent /
+            100;
+
+          const netAmount =
+            gross -
+            discountAmount;
+
+          const itemData = {
+            description,
+
+            quantity,
+
+            rate,
+
+            discount_percent:
+              discountPercent,
+
+            discount_amount:
+              discountAmount,
+
+            net_amount:
+              netAmount
+          };
+
+          if (
+            existingId
+          ) {
+            await put(
+              `/quotation_items/${existingId}`,
+              itemData
+            );
+          } else {
+            await post(
+              `/quotations/${quotationId}/items`,
+              itemData
+            );
+          }
+        }
+
+        /*
+           Re-read quotation details.
+        */
+
+        const details =
+          await get(
+            `/quotations/${quotationId}/details`
+          );
+
+        /*
+           Synchronize quotation totals
+           with the individual item discounts.
+        */
+
+        const totals =
+          details.totals;
+
+        await put(
+          `/quotations/${quotationId}`,
+          {
+            subtotal:
+              totals.subtotal,
+
+            discount_percent:
+              0,
+
+            discount_amount:
+              totals.total_item_discount,
+
+            discount:
+              totals.total_item_discount,
+
+            freight:
+              totals.freight,
+
+            taxable_amount:
+              totals.taxable_amount,
+
+            gst_percent:
+              totals.gst_percent,
+
+            gst_amount:
+              totals.gst_amount,
+
+            grand_total:
+              totals.grand_total
+          }
+        );
+
+        m.close();
+
+        toast(
+          "Quotation saved successfully"
+        );
+
+        await quotationView(
+          details.quotation
+        );
+
+      } catch (error) {
+        console.error(
+          error
+        );
+
+        toast(
+          error.message,
+          true
+        );
+
+        button.disabled =
+          false;
+
+        button.textContent =
+          record
+            ? "Save Changes"
+            : "Save Quotation";
+      }
+    };
+
+  /*
+     Calculate immediately.
+  */
+
+  calculate();
+}
+
+/* =========================================================
+   WHATSAPP
+========================================================= */
+
+function shareWhatsApp(
+  quotation,
+  items,
+  customerName
+) {
+  let message =
+    `Quotation: ${quotation.quotation_number}\n`;
+
+  message +=
+    `Customer: ${customerName}\n`;
+
+  message +=
+    `Date: ${date(
+      quotation.quotation_date
+    )}\n\n`;
+
+  message +=
+    `Products:\n`;
+
+  items.forEach(
+    (item, index) => {
+      message +=
+        `${index + 1}. `;
+
+      message +=
+        `${item.description || "Item"} `;
+
+      message +=
+        `Qty: ${item.quantity} `;
+
+      message +=
+        `Rate: ${money(
+          item.rate
+        )} `;
+
+      message +=
+        `Discount: ${
+          Number(
+            item.discount_percent ||
+            0
+          )
+        }% `;
+
+      message +=
+        `Net: ${money(
+          item.net_amount
+        )}\n`;
+    }
+  );
+
+  message +=
+    `\nSubtotal: ${money(
+      quotation.subtotal
+    )}`;
+
+  message +=
+    `\nTotal Item Discount: ${money(
+      quotation.discount_amount
+    )}`;
+
+  message +=
+    `\nFreight: ${money(
+      quotation.freight
+    )}`;
+
+  message +=
+    `\nTaxable Amount: ${money(
+      quotation.taxable_amount
+    )}`;
+
+  message +=
+    `\nGST ${
+      Number(
+        quotation.gst_percent ||
+        0
+      )
+    }%: ${money(
+      quotation.gst_amount
+    )}`;
+
+  message +=
+    `\nGrand Total: ${money(
+      quotation.grand_total
+    )}`;
+
+  window.open(
+    "https://wa.me/?text=" +
+      encodeURIComponent(
+        message
+      ),
+    "_blank"
   );
 }
 
 /* =========================================================
-   PAGE NAVIGATION
+   PRINT / PDF
+========================================================= */
+
+function printQuotation(
+  quotation,
+  items,
+  customerName
+) {
+  const printWindow =
+    window.open(
+      "",
+      "_blank"
+    );
+
+  if (!printWindow) {
+    toast(
+      "Please allow pop-ups to print the quotation",
+      true
+    );
+
+    return;
+  }
+
+  const itemRows =
+    items
+      .map(
+        (item, index) =>
+          `
+          <tr>
+
+            <td>
+              ${index + 1}
+            </td>
+
+            <td>
+              ${esc(
+                item.description ||
+                item.product_name ||
+                "Item"
+              )}
+            </td>
+
+            <td>
+              ${item.quantity}
+            </td>
+
+            <td>
+              ${money(
+                item.rate
+              )}
+            </td>
+
+            <td>
+              ${
+                Number(
+                  item.discount_percent ||
+                  0
+                )
+              }%
+            </td>
+
+            <td>
+              ${money(
+                item.discount_amount
+              )}
+            </td>
+
+            <td>
+              ${money(
+                item.net_amount
+              )}
+            </td>
+
+          </tr>
+          `
+      )
+      .join("");
+
+  printWindow.document.write(
+    `
+    <!DOCTYPE html>
+
+    <html>
+
+    <head>
+
+      <title>
+        ${esc(
+          quotation.quotation_number
+        )}
+      </title>
+
+      <style>
+
+        body {
+          font-family: Arial, sans-serif;
+          padding: 35px;
+          color: #172033;
+        }
+
+        h1 {
+          margin-bottom: 5px;
+        }
+
+        .company {
+          font-size: 24px;
+          font-weight: 800;
+          margin-bottom: 25px;
+        }
+
+        .details {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+
+        th,
+        td {
+          border: 1px solid #ddd;
+          padding: 10px;
+          text-align: left;
+        }
+
+        th {
+          background: #f3f5f8;
+        }
+
+        .summary {
+          width: 420px;
+          margin-left: auto;
+          margin-top: 25px;
+        }
+
+        .line {
+          display: flex;
+          justify-content: space-between;
+          padding: 8px;
+          border-bottom: 1px solid #eee;
+        }
+
+        .grand {
+          font-size: 20px;
+          font-weight: 800;
+          border-top: 2px solid #222;
+          margin-top: 10px;
+        }
+
+        @media print {
+          body {
+            padding: 10px;
+          }
+        }
+
+      </style>
+
+    </head>
+
+    <body>
+
+      <div class="company">
+        MAHALAXMI COMBUSTION
+      </div>
+
+      <h1>
+        QUOTATION
+      </h1>
+
+      <div class="details">
+
+        <div>
+          <strong>
+            Quotation No.
+          </strong>
+
+          <br>
+
+          ${esc(
+            quotation.quotation_number
+          )}
+        </div>
+
+        <div>
+          <strong>
+            Customer
+          </strong>
+
+          <br>
+
+          ${esc(
+            customerName
+          )}
+        </div>
+
+        <div>
+          <strong>
+            Date
+          </strong>
+
+          <br>
+
+          ${date(
+            quotation.quotation_date
+          )}
+        </div>
+
+        <div>
+          <strong>
+            Valid Until
+          </strong>
+
+          <br>
+
+          ${date(
+            quotation.valid_until
+          )}
+        </div>
+
+      </div>
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>
+              #
+            </th>
+
+            <th>
+              Product
+            </th>
+
+            <th>
+              Qty
+            </th>
+
+            <th>
+              Rate
+            </th>
+
+            <th>
+              Discount %
+            </th>
+
+            <th>
+              Discount
+            </th>
+
+            <th>
+              Net Amount
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          ${itemRows}
+
+        </tbody>
+
+      </table>
+
+      <div
+        class="summary"
+      >
+
+        <div class="line">
+          <span>
+            Subtotal
+          </span>
+
+          <strong>
+            ${money(
+              quotation.subtotal
+            )}
+          </strong>
+        </div>
+
+        <div class="line">
+          <span>
+            Total Item Discount
+          </span>
+
+          <strong>
+            ${money(
+              quotation.discount_amount
+            )}
+          </strong>
+        </div>
+
+        <div class="line">
+          <span>
+            Freight
+          </span>
+
+          <strong>
+            ${money(
+              quotation.freight
+            )}
+          </strong>
+        </div>
+
+        <div class="line">
+          <span>
+            Taxable Amount
+          </span>
+
+          <strong>
+            ${money(
+              quotation.taxable_amount
+            )}
+          </strong>
+        </div>
+
+        <div class="line">
+          <span>
+            GST ${
+              Number(
+                quotation.gst_percent ||
+                0
+              )
+            }%
+          </span>
+
+          <strong>
+            ${money(
+              quotation.gst_amount
+            )}
+          </strong>
+        </div>
+
+        <div
+          class="line grand"
+        >
+
+          <span>
+            Grand Total
+          </span>
+
+          <strong>
+            ${money(
+              quotation.grand_total
+            )}
+          </strong>
+
+        </div>
+
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+        };
+      <\/script>
+
+    </body>
+
+    </html>
+    `
+  );
+
+  printWindow.document.close();
+}
+
+/* =========================================================
+   VIEW QUOTATION
+
+   FAST
+   PRODUCT DETAILS
+   INDIVIDUAL DISCOUNTS
+   PDF
+   WHATSAPP
+========================================================= */
+
+async function quotationView(
+  record
+) {
+  /*
+     Show loading immediately.
+  */
+
+  const loadingModal =
+    modal(
+      "Loading Quotation...",
+      `
+        <div
+          style="
+            padding:40px;
+            text-align:center;
+          "
+        >
+          Loading quotation details...
+        </div>
+      `,
+      "modal-xlarge"
+    );
+
+  try {
+    /*
+       Only ONE quotation API request.
+    */
+
+    const details =
+      await get(
+        `/quotations/${record.id}/details`
+      );
+
+    const quotation =
+      details.quotation;
+
+    const items =
+      details.items || [];
+
+    /*
+       Customer name.
+       Only fetch customer if required.
+    */
+
+    let customerName =
+      `Customer #${
+        quotation.customer_id
+      }`;
+
+    try {
+      const customer =
+        await get(
+          `/customers/${quotation.customer_id}`
+        );
+
+      if (
+        customer.data
+      ) {
+        customerName =
+          customer.data.company_name ||
+          customer.data.contact_person ||
+          customerName;
+      }
+    } catch {
+      /*
+         Customer lookup failure
+         should NOT stop quotation view.
+      */
+    }
+
+    loadingModal.close();
+
+    const m =
+      modal(
+        `Quotation ${
+          quotation.quotation_number
+        }`,
+
+        `
+        <div
+          class="quotation-view"
+        >
+
+          <div
+            class="quotation-header-card"
+          >
+
+            <div>
+              <div
+                class="quotation-label"
+              >
+                Quotation No.
+              </div>
+
+              <strong>
+                ${esc(
+                  quotation.quotation_number
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <div
+                class="quotation-label"
+              >
+                Customer
+              </div>
+
+              <strong>
+                ${esc(
+                  customerName
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <div
+                class="quotation-label"
+              >
+                Date
+              </div>
+
+              <strong>
+                ${date(
+                  quotation.quotation_date
+                )}
+              </strong>
+            </div>
+
+          </div>
+
+          <div
+            class="quotation-products"
+          >
+
+            <div
+              class="quotation-products-title"
+            >
+              Products / Items
+            </div>
+
+            <div
+              class="table-wrapper"
+            >
+
+              <table>
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Product
+                    </th>
+
+                    <th>
+                      Qty
+                    </th>
+
+                    <th>
+                      Rate
+                    </th>
+
+                    <th>
+                      Discount %
+                    </th>
+
+                    <th>
+                      Discount
+                    </th>
+
+                    <th>
+                      Net Amount
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  ${
+                    items.length
+                      ? items
+                          .map(
+                            item =>
+                              `
+                              <tr>
+
+                                <td>
+                                  ${esc(
+                                    item.description ||
+                                    item.product_name ||
+                                    item.name ||
+                                    "Item"
+                                  )}
+                                </td>
+
+                                <td>
+                                  ${item.quantity}
+                                </td>
+
+                                <td>
+                                  ${money(
+                                    item.rate
+                                  )}
+                                </td>
+
+                                <td>
+                                  ${
+                                    Number(
+                                      item.discount_percent ||
+                                      0
+                                    )
+                                  }%
+                                </td>
+
+                                <td>
+                                  ${money(
+                                    item.discount_amount
+                                  )}
+                                </td>
+
+                                <td>
+                                  <strong>
+                                    ${money(
+                                      item.net_amount
+                                    )}
+                                  </strong>
+                                </td>
+
+                              </tr>
+                              `
+                          )
+                          .join("")
+                      : `
+                        <tr>
+                          <td
+                            colspan="6"
+                            style="
+                              text-align:center;
+                              padding:30px;
+                            "
+                          >
+                            No quotation items
+                          </td>
+                        </tr>
+                      `
+                  }
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+          <div
+            class="quotation-bottom"
+          >
+
+            <div></div>
+
+            <div
+              class="quotation-summary-view"
+            >
+
+              <div>
+                <span>
+                  Subtotal
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.subtotal
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Total Item Discount
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.discount_amount
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Freight
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.freight
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Taxable Amount
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.taxable_amount
+                  )}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  GST ${
+                    Number(
+                      quotation.gst_percent ||
+                      0
+                    )
+                  }%
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.gst_amount
+                  )}
+                </strong>
+              </div>
+
+              <div
+                class="grand-total-view"
+              >
+
+                <span>
+                  Grand Total
+                </span>
+
+                <strong>
+                  ${money(
+                    quotation.grand_total
+                  )}
+                </strong>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <div
+            class="modal-actions quotation-actions"
+          >
+
+            <button
+              type="button"
+              id="printQuotation"
+              class="button-primary"
+            >
+              Download / Print PDF
+            </button>
+
+            <button
+              type="button"
+              id="whatsappQuotation"
+            >
+              WhatsApp
+            </button>
+
+            <button
+              type="button"
+              id="editQuotation"
+            >
+              Edit Quotation
+            </button>
+
+            <button
+              type="button"
+              id="closeQuotationView"
+            >
+              Close
+            </button>
+
+          </div>
+
+        </div>
+        `,
+
+        "modal-xlarge"
+      );
+
+    m.host
+      .querySelector(
+        "#closeQuotationView"
+      )
+      .onclick =
+      m.close;
+
+    m.host
+      .querySelector(
+        "#printQuotation"
+      )
+      .onclick =
+      () =>
+        printQuotation(
+          quotation,
+          items,
+          customerName
+        );
+
+    m.host
+      .querySelector(
+        "#whatsappQuotation"
+      )
+      .onclick =
+      () =>
+        shareWhatsApp(
+          quotation,
+          items,
+          customerName
+        );
+
+    m.host
+      .querySelector(
+        "#editQuotation"
+      )
+      .onclick =
+      () => {
+        m.close();
+
+        quotationEditor(
+          quotation
+        );
+      };
+
+  } catch (error) {
+    loadingModal.close();
+
+    toast(
+      error.message,
+      true
+    );
+  }
+}
+
+/* =========================================================
+   SHOW PAGE
 ========================================================= */
 
 async function showPage(
   page
 ) {
-
-  page =
-    PAGE_INFO[page]
-      ? page
-      : "dashboard";
+  if (
+    !PAGE_INFO[page]
+  ) {
+    page =
+      "dashboard";
+  }
 
   currentPage =
     page;
 
-  updatePageHeader(
+  updateHeader(
     page
   );
-
-  pageRequest++;
 
   document
     .querySelectorAll(
       "[data-page]"
     )
     .forEach(
-      el => {
-
-        el.classList.toggle(
+      element =>
+        element.classList.toggle(
           "active",
-          el.dataset.page ===
+          element.dataset.page ===
             page
-        );
-      }
+        )
     );
 
-  const renderer = {
-
-    dashboard:
-      renderDashboard,
-
-    customers:
-      renderCustomers,
-
-    products:
-      renderProducts,
-
-    enquiries:
-      renderEnquiries
-
-  }[page];
-
-  if (renderer) {
-
-    return renderer();
+  if (
+    page ===
+    "dashboard"
+  ) {
+    return dashboard();
   }
 
-  return renderSimpleTable(
+  return entity(
     page
   );
 }
 
 /* =========================================================
-   NAVIGATION DETECTION
+   STYLES
 ========================================================= */
 
-function pageFromNavigation(
-  element
-) {
-
+function styles() {
   if (
-    element.dataset.page
+    $("crmStyles")
   ) {
-
-    return element.dataset.page;
-  }
-
-  const href =
-    element.getAttribute(
-      "href"
-    ) || "";
-
-  const hash =
-    href.match(
-      /#([a-z]+)/i
-    )?.[1];
-
-  if (
-    hash &&
-    PAGE_INFO[hash]
-  ) {
-
-    return hash;
-  }
-
-  const text =
-    element.textContent
-      .trim()
-      .toLowerCase()
-      .replace(
-        /\s+/g,
-        ""
-      );
-
-  return Object.keys(
-    PAGE_INFO
-  ).find(
-    page =>
-      text.includes(
-        page.replace(
-          "followups",
-          "follow-up"
-        )
-      )
-  );
-}
-
-/* =========================================================
-   UI STYLES
-========================================================= */
-
-function ensureCrmUiStyles() {
-
-  if (
-    document.getElementById(
-      "crmUiStyles"
-    )
-  ) {
-
     return;
   }
 
@@ -4599,224 +3339,281 @@ function ensureCrmUiStyles() {
     );
 
   style.id =
-    "crmUiStyles";
+    "crmStyles";
 
   style.textContent = `
 
-    .toolbar{
+    .toolbar {
       display:flex;
-      align-items:center;
       justify-content:space-between;
-      gap:16px;
-      margin:0 0 20px;
+      gap:15px;
+      margin-bottom:20px;
     }
 
-    .toolbar-left{
-      display:flex;
-      flex:1;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-
-    .toolbar input,
-    .toolbar select,
-    .form-grid input,
-    .form-grid select,
-    .form-grid textarea,
-    .quotation-top-grid input,
-    .quotation-top-grid select,
-    .quotation-item input,
-    .quotation-item select,
-    .quotation-summary input,
-    #quotationNotes{
-      box-sizing:border-box;
+    .toolbar input {
+      max-width:380px;
       width:100%;
-      padding:10px 12px;
-      border:1px solid #d8dee8;
-      border-radius:8px;
-      background:#fff;
+      padding:11px;
+      border:1px solid #d9e2ef;
+      border-radius:10px;
     }
 
-    .form-grid{
+    .form-grid,
+    .quote-top-grid {
       display:grid;
-      grid-template-columns:
-        repeat(2,minmax(0,1fr));
-      gap:16px;
+      grid-template-columns:repeat(2,1fr);
+      gap:15px;
     }
 
     .form-grid label,
-    .quotation-top-grid label,
-    .quotation-item label,
-    #quotationNotes{
+    .quote-top-grid label,
+    .full-field {
       display:flex;
       flex-direction:column;
       gap:7px;
       font-weight:600;
     }
 
-    .modal-large{
-      max-width:900px;
+    .form-grid input,
+    .form-grid textarea,
+    .quote-top-grid input,
+    .quote-top-grid select,
+    .full-field textarea {
+      padding:10px;
+      border:1px solid #d9e2ef;
+      border-radius:9px;
     }
 
-    .modal-xl{
-      max-width:1250px;
-      width:95%;
+    .modal-xlarge {
+      width:min(1250px,96vw);
     }
 
-    .quotation-top-grid{
-      display:grid;
-      grid-template-columns:
-        repeat(4,minmax(0,1fr));
-      gap:16px;
+    .modal-large {
+      width:min(900px,95vw);
     }
 
-    .quotation-item{
-      border:1px solid #e1e5eb;
-      border-radius:10px;
-      padding:15px;
-      margin-bottom:12px;
-      background:#fafbfc;
+    .quote-section {
+      margin-top:20px;
+      border:1px solid #e2e8f0;
+      border-radius:12px;
+      overflow:hidden;
     }
 
-    .quotation-item-grid{
-      display:grid;
-      grid-template-columns:
-        1.2fr
-        1.5fr
-        .7fr
-        .9fr
-        .9fr
-        1fr
-        1fr
-        auto;
-      gap:10px;
-      align-items:end;
-    }
-
-    .quotation-item-delete{
+    .section-title-row {
       display:flex;
-      align-items:end;
-    }
-
-    .button-danger{
-      border:0;
-      padding:10px 12px;
-      border-radius:8px;
-      cursor:pointer;
-      background:#dc3545;
-      color:#fff;
-    }
-
-    .quotation-summary{
-      border:1px solid #e1e5eb;
-      border-radius:10px;
-      padding:18px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      max-width:500px;
-      margin-left:auto;
-    }
-
-    .quotation-summary > div{
-      display:flex;
-      align-items:center;
       justify-content:space-between;
-      gap:20px;
+      align-items:center;
+      padding:16px;
+      background:#f8fafc;
     }
 
-    .quotation-summary label{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
+    .quote-items-table {
+      min-width:1000px;
+    }
+
+    .quote-items-table input {
       width:100%;
-      gap:20px;
+      box-sizing:border-box;
+      padding:9px;
+      border:1px solid #d9e2ef;
+      border-radius:7px;
     }
 
-    .quotation-summary input{
-      width:180px;
+    .quote-items-table th {
+      white-space:nowrap;
     }
 
-    .quotation-grand-total{
-      border-top:2px solid #222;
+    .quote-items-table td {
+      vertical-align:middle;
+    }
+
+    .quote-summary {
+      display:grid;
+      grid-template-columns:1fr 460px;
+      gap:25px;
+      margin-top:20px;
+    }
+
+    .quote-summary-box {
+      border:1px solid #dbe4f0;
+      border-radius:12px;
+      padding:16px;
+      background:#fff;
+    }
+
+    .summary-line,
+    .grand-total-line {
+      display:grid;
+      grid-template-columns:1fr 170px;
+      gap:10px;
+      align-items:center;
+      padding:10px 0;
+      border-bottom:1px solid #edf1f6;
+    }
+
+    .summary-line input {
+      text-align:right;
+      width:100%;
+      box-sizing:border-box;
+      padding:8px;
+      border:1px solid #d9e2ef;
+      border-radius:7px;
+    }
+
+    .grand-total-line {
+      border-top:2px solid #d7dfeb;
+      border-bottom:0;
+      font-size:18px;
       padding-top:14px;
-      margin-top:8px;
+    }
+
+    .grand-total-line strong {
+      font-size:24px;
+    }
+
+    .quotation-header-card {
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:20px;
+      padding:20px;
+      border:1px solid #e1e7ef;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .quotation-label {
+      font-size:12px;
+      color:#667085;
+      text-transform:uppercase;
+      margin-bottom:5px;
+      letter-spacing:.04em;
+    }
+
+    .quotation-products {
+      margin-top:20px;
+      border:1px solid #e1e7ef;
+      border-radius:12px;
+      overflow:hidden;
+    }
+
+    .quotation-products-title {
+      font-size:18px;
+      font-weight:700;
+      padding:16px;
+      background:#f8fafc;
+    }
+
+    .quotation-bottom {
+      display:grid;
+      grid-template-columns:1fr 460px;
+      gap:25px;
+      margin-top:20px;
+    }
+
+    .quotation-summary-view {
+      border:1px solid #dbe4f0;
+      border-radius:12px;
+      padding:16px;
+      background:#fff;
+    }
+
+    .quotation-summary-view > div {
+      display:flex;
+      justify-content:space-between;
+      padding:10px 0;
+      border-bottom:1px solid #edf1f6;
+    }
+
+    .quotation-summary-view
+    .grand-total-view {
+      border-top:2px solid #222;
+      border-bottom:0;
+      margin-top:5px;
+      padding-top:15px;
       font-size:20px;
     }
 
-    .quotation-detail-header{
+    .quotation-summary-view
+    .grand-total-view strong {
+      font-size:24px;
+    }
+
+    .quotation-actions {
+      justify-content:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:20px;
+    }
+
+    .success-card {
+      text-align:center;
+      background:#fff;
+      border:1px solid #dbe5f0;
+      border-radius:18px;
+      padding:45px;
+    }
+
+    .success-icon {
+      width:62px;
+      height:62px;
+      border-radius:50%;
+      margin:auto;
       display:grid;
-      grid-template-columns:
-        repeat(3,1fr);
-      gap:20px;
-      padding:15px;
-      border:1px solid #e1e5eb;
-      border-radius:10px;
+      place-items:center;
+      background:#e9f9ef;
+      color:#16834a;
+      font-size:32px;
+      font-weight:bold;
     }
 
-    @media(max-width:1100px){
-
-      .quotation-item-grid{
-        grid-template-columns:
-          repeat(3,minmax(0,1fr));
-      }
-
-      .quotation-top-grid{
-        grid-template-columns:
-          repeat(2,minmax(0,1fr));
-      }
+    .saved-total {
+      font-size:30px;
+      font-weight:800;
+      margin:18px;
     }
 
-    @media(max-width:700px){
-
-      .form-grid,
-      .quotation-top-grid,
-      .quotation-detail-header{
-        grid-template-columns:1fr;
-      }
-
-      .quotation-item-grid{
-        grid-template-columns:1fr;
-      }
-
-      .toolbar{
-        flex-direction:column;
-        align-items:stretch;
-      }
-
-      .quotation-summary{
-        max-width:none;
-      }
+    .saved-actions {
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:wrap;
     }
 
-    .crm-toast{
+    .crm-toast {
       position:fixed;
       right:20px;
       bottom:20px;
-      z-index:99999;
+      background:#172033;
+      color:white;
       padding:13px 18px;
-      border-radius:8px;
-      background:#222;
-      color:#fff;
+      border-radius:10px;
+      z-index:99999;
       opacity:0;
-      transform:translateY(10px);
-      pointer-events:none;
-      transition:.2s ease;
+      transition:.2s;
     }
 
-    .crm-toast.show{
+    .crm-toast.show {
       opacity:1;
-      transform:translateY(0);
     }
 
-    .crm-toast[data-type="error"]{
-      background:#c62828;
+    .crm-toast[data-type="error"] {
+      background:#b42318;
     }
 
-    .loading{
-      padding:50px;
-      text-align:center;
-      font-size:18px;
+    @media(max-width:900px) {
+
+      .form-grid,
+      .quote-top-grid,
+      .quote-summary,
+      .quotation-bottom,
+      .quotation-header-card {
+        grid-template-columns:1fr;
+      }
+
+      .modal-xlarge {
+        width:96vw;
+      }
+
     }
 
   `;
@@ -4827,16 +3624,11 @@ function ensureCrmUiStyles() {
 }
 
 /* =========================================================
-   INITIALIZE CRM
+   BOOT
 ========================================================= */
 
-function initializeCRM() {
-
-  ensureCrmUiStyles();
-
-  /*
-   Navigation buttons
-  */
+function boot() {
+  styles();
 
   document
     .querySelectorAll(
@@ -4844,96 +3636,32 @@ function initializeCRM() {
     )
     .forEach(
       element => {
-
         element.addEventListener(
           "click",
           event => {
-
             event.preventDefault();
 
-            const page =
-              pageFromNavigation(
-                element
-              );
-
-            if (page) {
-
-              showPage(page);
-            }
+            showPage(
+              element.dataset.page
+            );
           }
         );
       }
     );
-
-  /*
-   Existing links without
-   data-page
-  */
-
-  document
-    .querySelectorAll(
-      "a"
-    )
-    .forEach(
-      element => {
-
-        if (
-          element.dataset
-            .crmNavigationBound
-        ) {
-
-          return;
-        }
-
-        const page =
-          pageFromNavigation(
-            element
-          );
-
-        if (!page) {
-          return;
-        }
-
-        element.dataset
-          .crmNavigationBound =
-          "true";
-
-        element.addEventListener(
-          "click",
-          event => {
-
-            event.preventDefault();
-
-            showPage(page);
-          }
-        );
-      }
-    );
-
-  /*
-   Load dashboard
-  */
 
   showPage(
     "dashboard"
   );
 }
 
-/* =========================================================
-   DOM READY
-========================================================= */
-
 if (
   document.readyState ===
   "loading"
 ) {
-
   document.addEventListener(
     "DOMContentLoaded",
-    initializeCRM
+    boot
   );
-
 } else {
-
-  initializeCRM();
+  boot();
 }
