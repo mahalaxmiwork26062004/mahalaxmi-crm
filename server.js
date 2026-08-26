@@ -3,7 +3,6 @@ const mysql = require("mysql2/promise");
 const path = require("path");
 
 const app = express();
-
 const PORT = process.env.PORT || 3000;
 
 /* =========================================================
@@ -11,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 ========================================================= */
 
 app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -31,7 +31,7 @@ const db = mysql.createPool({
 });
 
 /* =========================================================
-   ALLOWED CRM TABLES
+   ALLOWED TABLES
 ========================================================= */
 
 const ALLOWED_TABLES = [
@@ -74,18 +74,10 @@ function normalizeTableName(tableName) {
     .trim()
     .toLowerCase();
 
-  const aliased = TABLE_ALIASES[normalized] || normalized;
+  const table = TABLE_ALIASES[normalized] || normalized;
 
-  if (!ALLOWED_TABLES.includes(aliased)) {
-    return null;
-  }
-
-  return aliased;
+  return ALLOWED_TABLES.includes(table) ? table : null;
 }
-
-/* =========================================================
-   DATABASE SCHEMA HELPERS
-========================================================= */
 
 async function getTableColumns(tableName) {
   const [rows] = await db.query(
@@ -102,18 +94,15 @@ async function getTableColumns(tableName) {
       AND TABLE_NAME = ?
     ORDER BY ORDINAL_POSITION
     `,
-    [
-      process.env.DB_NAME,
-      tableName
-    ]
+    [process.env.DB_NAME, tableName]
   );
 
   return rows;
 }
 
 async function getColumnNames(tableName) {
-  const rows = await getTableColumns(tableName);
-  return rows.map(row => row.COLUMN_NAME);
+  const columns = await getTableColumns(tableName);
+  return columns.map(column => column.COLUMN_NAME);
 }
 
 async function validateRequestColumns(tableName, data) {
@@ -132,10 +121,6 @@ async function validateRequestColumns(tableName, data) {
   };
 }
 
-/* =========================================================
-   USER SANITIZATION
-========================================================= */
-
 function sanitizeUser(row) {
   const copy = { ...row };
 
@@ -144,10 +129,6 @@ function sanitizeUser(row) {
 
   return copy;
 }
-
-/* =========================================================
-   NUMBER HELPERS
-========================================================= */
 
 function money(value) {
   const number = Number(value);
@@ -162,28 +143,15 @@ function money(value) {
 function numberValue(value, fallback = 0) {
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : fallback;
+  return Number.isFinite(number) ? number : fallback;
 }
 
 /* =========================================================
-   QUOTATION NUMBER GENERATOR
+   QUOTATION NUMBER
 ========================================================= */
-
-/*
-  Generates:
-
-  QTN-2026-0001
-  QTN-2026-0002
-  QTN-2026-0003
-
-  It checks the existing quotation_number values.
-*/
 
 async function generateQuotationNumber(connection = db) {
   const year = new Date().getFullYear();
-
   const prefix = `QTN-${year}-`;
 
   const [rows] = await connection.query(
@@ -200,8 +168,10 @@ async function generateQuotationNumber(connection = db) {
   let nextNumber = 1;
 
   if (rows.length > 0 && rows[0].quotation_number) {
-    const lastNumber = String(rows[0].quotation_number)
-      .replace(prefix, "");
+    const lastNumber = String(rows[0].quotation_number).replace(
+      prefix,
+      ""
+    );
 
     const parsed = parseInt(lastNumber, 10);
 
@@ -215,29 +185,23 @@ async function generateQuotationNumber(connection = db) {
 
 /* =========================================================
    QUOTATION CALCULATION
+
+   SUBTOTAL
+        ↓
+   DISCOUNT %
+        ↓
+   DISCOUNT AMOUNT
+        ↓
+   AFTER DISCOUNT
+        ↓
+   FREIGHT
+        ↓
+   TAXABLE AMOUNT
+        ↓
+   GST
+        ↓
+   GRAND TOTAL
 ========================================================= */
-
-/*
-  Calculation:
-
-  SUBTOTAL
-      ↓
-  DISCOUNT %
-      ↓
-  DISCOUNT AMOUNT
-      ↓
-  SUBTOTAL - DISCOUNT
-      ↓
-  + FREIGHT
-      ↓
-  TAXABLE AMOUNT
-      ↓
-  GST %
-      ↓
-  GST AMOUNT
-      ↓
-  GRAND TOTAL
-*/
 
 function calculateQuotation({
   subtotal = 0,
@@ -247,15 +211,10 @@ function calculateQuotation({
   gst_percent = 18
 }) {
   subtotal = money(subtotal);
-
   discount_percent = numberValue(discount_percent);
   freight = money(freight);
   gst_percent = numberValue(gst_percent, 18);
 
-  /*
-    If discount percentage is supplied,
-    calculate discount amount from percentage.
-  */
   let discountAmount = 0;
 
   if (discount_percent > 0) {
@@ -263,11 +222,6 @@ function calculateQuotation({
       subtotal * discount_percent / 100
     );
   } else {
-    /*
-      Backward compatibility:
-      If percentage is 0 but discount amount
-      is supplied, keep the supplied amount.
-    */
     discountAmount = money(discount);
   }
 
@@ -283,9 +237,6 @@ function calculateQuotation({
     subtotal - discountAmount
   );
 
-  /*
-    Freight is added BEFORE GST.
-  */
   const taxableAmount = money(
     afterDiscount + freight
   );
@@ -301,8 +252,9 @@ function calculateQuotation({
   return {
     subtotal,
     discount_percent: money(discount_percent),
-    discount_amount: discountAmount,
     discount: discountAmount,
+    discount_amount: discountAmount,
+    after_discount: afterDiscount,
     freight,
     taxable_amount: taxableAmount,
     gst_percent: money(gst_percent),
@@ -325,7 +277,6 @@ app.get("/api/health", async (req, res) => {
       database: "connected",
       timestamp: new Date().toISOString()
     });
-
   } catch (error) {
     console.error("HEALTH ERROR:", error);
 
@@ -344,13 +295,10 @@ app.get("/api/health", async (req, res) => {
 app.get("/api", (req, res) => {
   res.json({
     success: true,
-
     application: "Mahalaxmi Enterprise AI CRM",
-
     version: "3.0",
 
     endpoints: {
-
       health: "GET /api/health",
 
       generic: {
@@ -371,8 +319,6 @@ app.get("/api", (req, res) => {
       }
     },
 
-    tableAliases: TABLE_ALIASES,
-
     tables: ALLOWED_TABLES
   });
 });
@@ -390,7 +336,6 @@ app.get("/api/quotations/next-number", async (req, res) => {
       success: true,
       quotation_number: quotationNumber
     });
-
   } catch (error) {
     console.error(
       "NEXT QUOTATION NUMBER ERROR:",
@@ -411,13 +356,13 @@ app.get("/api/quotations/next-number", async (req, res) => {
 
 app.post("/api/quotations/calculate", async (req, res) => {
   try {
-    const result = calculateQuotation(req.body || {});
+    const calculation =
+      calculateQuotation(req.body || {});
 
     res.json({
       success: true,
-      calculation: result
+      calculation
     });
-
   } catch (error) {
     console.error(
       "QUOTATION CALCULATION ERROR:",
@@ -455,9 +400,7 @@ app.get("/api/:table", async (req, res) => {
 
     res.json({
       success: true,
-
       table,
-
       count: rows.length,
 
       data: rows.map(row =>
@@ -466,9 +409,11 @@ app.get("/api/:table", async (req, res) => {
           : row
       )
     });
-
   } catch (error) {
-    console.error("GET TABLE ERROR:", error);
+    console.error(
+      "GET TABLE ERROR:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -503,9 +448,11 @@ app.get("/api/:table/schema", async (req, res) => {
       table,
       columns
     });
-
   } catch (error) {
-    console.error("SCHEMA ERROR:", error);
+    console.error(
+      "SCHEMA ERROR:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -559,7 +506,6 @@ app.get("/api/:table/:id", async (req, res) => {
       table,
       data: record
     });
-
   } catch (error) {
     console.error(
       "GET SINGLE ERROR:",
@@ -579,14 +525,7 @@ app.get("/api/:table/:id", async (req, res) => {
 ========================================================= */
 
 app.post("/api/:table", async (req, res) => {
-
-  /*
-    IMPORTANT:
-    This route contains special quotation handling.
-  */
-
   try {
-
     const table =
       normalizeTableName(req.params.table);
 
@@ -603,7 +542,6 @@ app.post("/api/:table", async (req, res) => {
     };
 
     if (
-      !data ||
       typeof data !== "object" ||
       Array.isArray(data) ||
       Object.keys(data).length === 0
@@ -615,17 +553,10 @@ app.post("/api/:table", async (req, res) => {
     }
 
     /* =====================================================
-       SPECIAL QUOTATION PROCESSING
+       QUOTATION
     ===================================================== */
 
     if (table === "quotations") {
-
-      /*
-        Never trust frontend quotation number.
-
-        If blank or missing:
-        automatically generate it.
-      */
 
       if (
         !data.quotation_number ||
@@ -635,55 +566,15 @@ app.post("/api/:table", async (req, res) => {
           await generateQuotationNumber();
       }
 
-      /*
-        Check duplicate quotation number.
-      */
-
-      const [duplicate] = await db.query(
-        `
-        SELECT id
-        FROM quotations
-        WHERE quotation_number = ?
-        LIMIT 1
-        `,
-        [data.quotation_number]
-      );
-
-      if (duplicate.length > 0) {
-        /*
-          If frontend accidentally sends an existing number,
-          generate a new one.
-        */
-
-        data.quotation_number =
-          await generateQuotationNumber();
-      }
-
-      /*
-        Calculate quotation values on server.
-      */
-
       const calculation =
         calculateQuotation({
-          subtotal:
-            data.subtotal,
-
+          subtotal: data.subtotal,
           discount_percent:
             data.discount_percent,
-
-          discount:
-            data.discount,
-
-          freight:
-            data.freight,
-
-          gst_percent:
-            data.gst_percent
+          discount: data.discount,
+          freight: data.freight,
+          gst_percent: data.gst_percent
         });
-
-      /*
-        Put calculated values into database fields.
-      */
 
       data.subtotal =
         calculation.subtotal;
@@ -711,10 +602,6 @@ app.post("/api/:table", async (req, res) => {
 
       data.grand_total =
         calculation.grand_total;
-
-      /*
-        Default status.
-      */
 
       if (!data.status) {
         data.status = "Draft";
@@ -786,10 +673,8 @@ app.post("/api/:table", async (req, res) => {
         success: false,
         message: "Invalid column(s) supplied",
         table,
-
         invalid_columns:
           validation.invalidColumns,
-
         allowed_columns:
           validation.allowedColumns
       });
@@ -813,7 +698,9 @@ app.post("/api/:table", async (req, res) => {
       );
 
     const placeholders =
-      columns.map(() => "?").join(", ");
+      columns
+        .map(() => "?")
+        .join(", ");
 
     const columnNames =
       columns
@@ -834,18 +721,10 @@ app.post("/api/:table", async (req, res) => {
 
     res.status(201).json({
       success: true,
-
       message:
         `${table} record created successfully`,
-
       table,
-
       id: result.insertId,
-
-      /*
-        Return quotation information
-        directly after saving.
-      */
 
       ...(table === "quotations"
         ? {
@@ -902,9 +781,7 @@ app.post("/api/:table", async (req, res) => {
 ========================================================= */
 
 app.put("/api/:table/:id", async (req, res) => {
-
   try {
-
     const table =
       normalizeTableName(req.params.table);
 
@@ -921,7 +798,6 @@ app.put("/api/:table/:id", async (req, res) => {
     };
 
     if (
-      !data ||
       typeof data !== "object" ||
       Array.isArray(data) ||
       Object.keys(data).length === 0
@@ -935,7 +811,7 @@ app.put("/api/:table/:id", async (req, res) => {
     delete data.id;
 
     /* =====================================================
-       QUOTATION UPDATE CALCULATION
+       QUOTATION UPDATE
     ===================================================== */
 
     if (table === "quotations") {
@@ -968,18 +844,11 @@ app.put("/api/:table/:id", async (req, res) => {
 
       const calculation =
         calculateQuotation({
-          subtotal:
-            merged.subtotal,
-
+          subtotal: merged.subtotal,
           discount_percent:
             merged.discount_percent,
-
-          discount:
-            merged.discount,
-
-          freight:
-            merged.freight,
-
+          discount: merged.discount,
+          freight: merged.freight,
           gst_percent:
             merged.gst_percent
         });
@@ -1023,18 +892,12 @@ app.put("/api/:table/:id", async (req, res) => {
       );
 
     if (!validation.valid) {
-
       return res.status(400).json({
         success: false,
-
-        message:
-          "Invalid column(s) supplied",
-
+        message: "Invalid column(s) supplied",
         table,
-
         invalid_columns:
           validation.invalidColumns,
-
         allowed_columns:
           validation.allowedColumns
       });
@@ -1088,14 +951,10 @@ app.put("/api/:table/:id", async (req, res) => {
 
     res.json({
       success: true,
-
       message:
         `${table} record updated successfully`,
-
       table,
-
-      id:
-        Number(req.params.id)
+      id: Number(req.params.id)
     });
 
   } catch (error) {
@@ -1109,12 +968,8 @@ app.put("/api/:table/:id", async (req, res) => {
       success: false,
       message:
         "Unable to update record",
-
-      error:
-        error.message,
-
-      code:
-        error.code || null
+      error: error.message,
+      code: error.code || null
     });
   }
 });
@@ -1124,9 +979,7 @@ app.put("/api/:table/:id", async (req, res) => {
 ========================================================= */
 
 app.delete("/api/:table/:id", async (req, res) => {
-
   try {
-
     const table =
       normalizeTableName(req.params.table);
 
@@ -1157,14 +1010,10 @@ app.delete("/api/:table/:id", async (req, res) => {
 
     res.json({
       success: true,
-
       message:
         `${table} record deleted successfully`,
-
       table,
-
-      id:
-        Number(req.params.id)
+      id: Number(req.params.id)
     });
 
   } catch (error) {
@@ -1176,15 +1025,10 @@ app.delete("/api/:table/:id", async (req, res) => {
 
     res.status(500).json({
       success: false,
-
       message:
         "Unable to delete record",
-
-      error:
-        error.message,
-
-      code:
-        error.code || null
+      error: error.message,
+      code: error.code || null
     });
   }
 });
@@ -1196,7 +1040,6 @@ app.delete("/api/:table/:id", async (req, res) => {
 app.get(
   "/api/quotations/:id/details",
   async (req, res) => {
-
     try {
 
       const quotationId =
@@ -1234,12 +1077,9 @@ app.get(
 
       res.json({
         success: true,
-
         quotation:
           quotations[0],
-
         items,
-
         item_count:
           items.length
       });
@@ -1253,12 +1093,9 @@ app.get(
 
       res.status(500).json({
         success: false,
-
         message:
           "Unable to fetch quotation details",
-
-        error:
-          error.message
+        error: error.message
       });
     }
   }
@@ -1271,7 +1108,6 @@ app.get(
 app.get(
   "/api/quotations/:id/items",
   async (req, res) => {
-
     try {
 
       const [rows] =
@@ -1287,13 +1123,10 @@ app.get(
 
       res.json({
         success: true,
-
         quotation_id:
           Number(req.params.id),
-
         count:
           rows.length,
-
         items:
           rows
       });
@@ -1307,25 +1140,21 @@ app.get(
 
       res.status(500).json({
         success: false,
-
         message:
           "Unable to fetch quotation items",
-
-        error:
-          error.message
+        error: error.message
       });
     }
   }
 );
 
 /* =========================================================
-   ADD ITEM TO QUOTATION
+   ADD QUOTATION ITEM
 ========================================================= */
 
 app.post(
   "/api/quotations/:id/items",
   async (req, res) => {
-
     try {
 
       const quotationId =
@@ -1352,7 +1181,6 @@ app.post(
 
       let data = {
         ...(req.body || {}),
-
         quotation_id:
           quotationId
       };
@@ -1383,16 +1211,12 @@ app.post(
         );
 
       if (!validation.valid) {
-
         return res.status(400).json({
           success: false,
-
           message:
             "Invalid quotation item field(s)",
-
           invalid_columns:
             validation.invalidColumns,
-
           allowed_columns:
             validation.allowedColumns
         });
@@ -1402,6 +1226,14 @@ app.post(
 
       const columns =
         Object.keys(data);
+
+      if (columns.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No quotation item fields supplied"
+        });
+      }
 
       const values =
         columns.map(
@@ -1416,8 +1248,7 @@ app.post(
       const columnNames =
         columns
           .map(
-            column =>
-              `\`${column}\``
+            column => `\`${column}\``
           )
           .join(", ");
 
@@ -1435,13 +1266,10 @@ app.post(
 
       res.status(201).json({
         success: true,
-
         message:
           "Quotation item created successfully",
-
         quotation_id:
           Number(quotationId),
-
         item_id:
           result.insertId
       });
@@ -1455,15 +1283,10 @@ app.post(
 
       res.status(500).json({
         success: false,
-
         message:
           "Unable to create quotation item",
-
-        error:
-          error.message,
-
-        code:
-          error.code || null
+        error: error.message,
+        code: error.code || null
       });
     }
   }
@@ -1474,7 +1297,6 @@ app.post(
 ========================================================= */
 
 app.get("/", (req, res) => {
-
   res.sendFile(
     path.join(
       __dirname,
@@ -1482,20 +1304,11 @@ app.get("/", (req, res) => {
       "index.html"
     ),
     error => {
-
       if (error) {
-
-        res.send(`
+        res.status(500).send(`
           <h1>Mahalaxmi Enterprise AI CRM</h1>
-
-          <p>
-            CRM server is running.
-          </p>
-
-          <p>
-            Create public/index.html
-            to load the dashboard.
-          </p>
+          <p>CRM server is running.</p>
+          <p>Unable to load public/index.html.</p>
         `);
       }
     }
@@ -1507,18 +1320,12 @@ app.get("/", (req, res) => {
 ========================================================= */
 
 app.use("/api", (req, res) => {
-
   res.status(404).json({
     success: false,
-
     message:
       "API endpoint not found",
-
-    method:
-      req.method,
-
-    path:
-      req.originalUrl
+    method: req.method,
+    path: req.originalUrl
   });
 });
 
@@ -1528,7 +1335,6 @@ app.use("/api", (req, res) => {
 
 app.use(
   (error, req, res, next) => {
-
     console.error(
       "GLOBAL ERROR:",
       error
@@ -1536,10 +1342,8 @@ app.use(
 
     res.status(500).json({
       success: false,
-
       message:
         "Internal server error",
-
       error:
         error.message
     });
@@ -1553,10 +1357,8 @@ app.use(
 app.listen(
   PORT,
   () => {
-
     console.log(
       `Mahalaxmi CRM running on port ${PORT}`
     );
-
   }
 );
